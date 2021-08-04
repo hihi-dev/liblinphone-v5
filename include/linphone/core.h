@@ -2798,6 +2798,28 @@ LINPHONE_PUBLIC void linphone_core_enable_echo_cancellation(LinphoneCore *core, 
 LINPHONE_PUBLIC bool_t linphone_core_echo_cancellation_enabled(const LinphoneCore *core);
 
 /**
+ * HiHi Test Tones
+ *
+ * Enables the sending and receiving of a test tone. Useful for testing audio
+ * delay at the start of a call and audio glitches caused by call recording, etc.
+ * @param[in] lc #LinphoneCore object
+ * @param[in] val A boolean value telling whether the test tone is to be enabled or disabled.
+ * @ingroup media_parameters
+**/
+LINPHONE_PUBLIC void linphone_core_enable_test_tone(LinphoneCore *lc, bool_t val);
+
+/**
+ * HiHi Test Tones
+ *
+ * Returns TRUE if the test tone is enabled.
+ * @param[in] lc #LinphoneCore object
+ * @return A boolean value telling whether the test tone is enabled or disabled
+ * @ingroup media_parameters
+**/
+LINPHONE_PUBLIC bool_t linphone_core_test_tone_enabled(const LinphoneCore *lc);
+
+
+/**
  * Enables or disable echo limiter.
  * @param core #LinphoneCore object. @notnil
  * @param enable TRUE to enable echo limiter, FALSE to disable it.
