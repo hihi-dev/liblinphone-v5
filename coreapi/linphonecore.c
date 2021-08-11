@@ -1458,6 +1458,8 @@ static void sound_config_read(LinphoneCore *lc) {
 	linphone_core_set_disable_record_on_mute(lc, linphone_config_get_bool(lc->config,"sound","disable_record_on_mute", FALSE));
 	linphone_core_set_remote_ringback_tone (lc,linphone_config_get_string(lc->config,"sound","ringback_tone",NULL));
 
+    /** HiHi Test tones **/
+   	linphone_core_enable_test_tone(lc, !!linphone_config_get_int(lc->config,"sound","test_tone",0));
 	/*just parse requested stream feature once at start to print out eventual errors*/
 	linphone_core_get_audio_features(lc);
 
@@ -5314,6 +5316,15 @@ void linphone_core_enable_echo_cancellation(LinphoneCore *lc, bool_t val){
 
 bool_t linphone_core_echo_cancellation_enabled(const LinphoneCore *lc){
 	return lc->sound_conf.ec;
+}
+
+// HiHi Test Tones
+void linphone_core_enable_test_tone(LinphoneCore *lc, bool_t val){
+	lc->sound_conf.test_tone=val;
+}
+
+bool_t linphone_core_test_tone_enabled(const LinphoneCore *lc){
+	return lc->sound_conf.test_tone;
 }
 
 void linphone_core_enable_echo_limiter(LinphoneCore *lc, bool_t val){
