@@ -555,7 +555,6 @@ void ToneManager::doStop(const std::shared_ptr<CallSession> &session, ToneManage
 void ToneManager::doStopRingbackTone() {
 	lInfo() << "[ToneManager] " << __func__;
 	LinphoneCore *lc = getCore()->getCCore();
-
 	if (lc->ringstream) {
 		ring_stop(lc->ringstream);
 		lc->ringstream = NULL;

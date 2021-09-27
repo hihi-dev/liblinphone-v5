@@ -1796,7 +1796,7 @@ LINPHONE_PUBLIC bool_t linphone_core_generic_comfort_noise_enabled(const Linphon
  * @param rate can be #LINPHONE_FIND_PAYLOAD_IGNORE_RATE
  * @param channels  number of channels, can be #LINPHONE_FIND_PAYLOAD_IGNORE_CHANNELS
  * @return Returns NULL if not found. If a #LinphonePayloadType is returned, it must be released with
- * linphone_payload_type_unref() after using it. @maybenil
+ * linphone_payload_type_unref() after using it. @maybenil @tobefreed
  * @warning The returned payload type is allocated as a floating reference i.e. the reference counter is initialized to 0.
  */
 LINPHONE_PUBLIC LinphonePayloadType *linphone_core_get_payload_type(LinphoneCore *core, const char *type, int rate, int channels);
@@ -2960,6 +2960,28 @@ LINPHONE_PUBLIC void linphone_core_enable_echo_cancellation(LinphoneCore *core, 
  * @ingroup media_parameters
 **/
 LINPHONE_PUBLIC bool_t linphone_core_echo_cancellation_enabled(const LinphoneCore *core);
+
+/**
+ * HiHi Test Tones
+ *
+ * Enables the sending and receiving of a test tone. Useful for testing audio
+ * delay at the start of a call and audio glitches caused by call recording, etc.
+ * @param[in] lc #LinphoneCore object
+ * @param[in] val A boolean value telling whether the test tone is to be enabled or disabled.
+ * @ingroup media_parameters
+**/
+LINPHONE_PUBLIC void linphone_core_enable_test_tone(LinphoneCore *lc, bool_t val);
+
+/**
+ * HiHi Test Tones
+ *
+ * Returns TRUE if the test tone is enabled.
+ * @param[in] lc #LinphoneCore object
+ * @return A boolean value telling whether the test tone is enabled or disabled
+ * @ingroup media_parameters
+**/
+LINPHONE_PUBLIC bool_t linphone_core_test_tone_enabled(const LinphoneCore *lc);
+
 
 /**
  * Enables or disable echo limiter.

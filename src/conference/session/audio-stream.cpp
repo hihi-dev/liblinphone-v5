@@ -392,6 +392,8 @@ void MS2AudioStream::render(const OfferAnswerContext &params, CallSession::State
 			io.input.file = nullptr; /* We prefer to use the remote_play api, that allows to play multimedia files */
 		}
 	}
+	bool_t useTestTone = linphone_core_test_tone_enabled(getCCore());
+	audio_stream_enable_test_tone(mStream, useTestTone);
 	if (ok) {
 		if (mCurrentCaptureCard) ms_snd_card_unref(mCurrentCaptureCard);
 		if (mCurrentPlaybackCard) ms_snd_card_unref(mCurrentPlaybackCard);

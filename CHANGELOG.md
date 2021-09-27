@@ -39,6 +39,8 @@ This changelog file was started on October 2019. Previous changes were more or l
 - Swift and C# wrappers corner-case usage issues.
 - See git log for full list of other minor bugfixes.
 
+### Added
+- CoreService class for Android can make the device vibrate while incoming call is ringing.
 
 ## [4.5.0] 2021-03-29
 
