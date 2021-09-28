@@ -17,6 +17,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "c-wrapper/internal/c-tools.h"
 #include "call-session-params-p.h"
 #include "media-session-params-p.h"
 
@@ -248,7 +249,7 @@ void MediaSessionParams::initDefault (const std::shared_ptr<Core> &core, Linphon
 	if (conference) {
 		// Default videoEnable to conference capabilities if the core is in a conference
 		const LinphoneConferenceParams * params = linphone_conference_get_current_params(conference);
-		d->videoEnabled = !!linphone_conference_params_video_enabled(params);
+		d->videoEnabled = !!linphone_conference_params_is_video_enabled(params);
 	} else {
 		if (dir == LinphoneCallOutgoing){
 			d->videoEnabled = cCore->video_policy.automatically_initiate;
@@ -257,7 +258,7 @@ void MediaSessionParams::initDefault (const std::shared_ptr<Core> &core, Linphon
 		}
 	}
 	if (!linphone_core_video_enabled(cCore) && d->videoEnabled) {
-		lError() << "LinphoneCore has video disabled for both capture and display, but video policy is to start the call with video. "
+		lError() << "LinphoneCore " << linphone_core_get_identity(cCore) << " has video disabled for both capture and display, but video policy is to start the call with video. "
 			"This is a possible mis-use of the API. In this case, video is disabled in default LinphoneCallParams";
 		d->videoEnabled = false;
 	}
@@ -526,12 +527,7 @@ void MediaSessionParams::setMediaEncryption (LinphoneMediaEncryption encryption)
 // -----------------------------------------------------------------------------
 
 SalMediaProto MediaSessionParams::getMediaProto () const {
-	if ((getMediaEncryption() == LinphoneMediaEncryptionSRTP) && avpfEnabled()) return SalProtoRtpSavpf;
-	if (getMediaEncryption() == LinphoneMediaEncryptionSRTP) return SalProtoRtpSavp;
-	if ((getMediaEncryption() == LinphoneMediaEncryptionDTLS) && avpfEnabled()) return SalProtoUdpTlsRtpSavpf;
-	if (getMediaEncryption() == LinphoneMediaEncryptionDTLS) return SalProtoUdpTlsRtpSavp;
-	if (avpfEnabled()) return SalProtoRtpAvpf;
-	return SalProtoRtpAvp;
+	return linphone_media_encryption_to_sal_media_proto(getMediaEncryption(), (avpfEnabled() ? TRUE : FALSE));
 }
 
 const char * MediaSessionParams::getRtpProfile () const {
@@ -542,7 +538,7 @@ const char * MediaSessionParams::getRtpProfile () const {
 
 void MediaSessionParams::addCustomSdpAttribute (const string &attributeName, const string &attributeValue) {
 	L_D();
-	d->customSdpAttributes = sal_custom_sdp_attribute_append(d->customSdpAttributes, attributeName.c_str(), attributeValue.c_str());
+	d->customSdpAttributes = sal_custom_sdp_attribute_append(d->customSdpAttributes, attributeName.c_str(), L_STRING_TO_C(attributeValue));
 }
 
 void MediaSessionParams::clearCustomSdpAttributes () {
@@ -559,7 +555,7 @@ const char * MediaSessionParams::getCustomSdpAttribute (const string &attributeN
 
 void MediaSessionParams::addCustomSdpMediaAttribute (LinphoneStreamType lst, const string &attributeName, const string &attributeValue) {
 	L_D();
-	d->customSdpMediaAttributes[lst] = sal_custom_sdp_attribute_append(d->customSdpMediaAttributes[lst], attributeName.c_str(), attributeValue.c_str());
+	d->customSdpMediaAttributes[lst] = sal_custom_sdp_attribute_append(d->customSdpMediaAttributes[lst], attributeName.c_str(), L_STRING_TO_C(attributeValue));
 }
 
 void MediaSessionParams::clearCustomSdpMediaAttributes (LinphoneStreamType lst) {

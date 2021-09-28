@@ -34,6 +34,10 @@ class MediaSessionPrivate;
 class Participant;
 class StreamsGroup;
 
+namespace MediaConference {
+	class Conference;
+}
+
 class LINPHONE_PUBLIC MediaSession : public CallSession {
 	friend class Call;
 	friend class IceAgent;
@@ -41,6 +45,7 @@ class LINPHONE_PUBLIC MediaSession : public CallSession {
 	friend class Stream;
 	friend class StreamsGroup;
 
+	friend class MediaConference::LocalConference;
 public:
 	MediaSession (const std::shared_ptr<Core> &core, std::shared_ptr<Participant> me, const CallSessionParams *params, CallSessionListener *listener);
 	~MediaSession ();
@@ -68,7 +73,7 @@ public:
 	bool isRecording ();
 	void terminateBecauseOfLostMedia ();
 	LinphoneStatus updateFromConference (const MediaSessionParams *msp, const std::string &subject = "");
-	LinphoneStatus update (const MediaSessionParams *msp, const std::string &subject = "");
+	LinphoneStatus update (const MediaSessionParams *msp, const bool isCapabilityNegotiationUpdate = false, const std::string &subject = "");
 
 	void requestNotifyNextVideoFrameDecoded ();
 	LinphoneStatus takePreviewSnapshot (const std::string& file);
@@ -113,12 +118,13 @@ public:
 	void setParams (const MediaSessionParams *msp);
 	void setSpeakerVolumeGain (float value);
 
-	void setInputAudioDevice(AudioDevice *audioDevice);
-	void setOutputAudioDevice(AudioDevice *audioDevice);
+	bool setInputAudioDevice(AudioDevice *audioDevice);
+	bool setOutputAudioDevice(AudioDevice *audioDevice);
 	AudioDevice* getInputAudioDevice() const;
 	AudioDevice* getOutputAudioDevice() const;
 	
 	StreamsGroup & getStreamsGroup()const;
+
 private:
 	L_DECLARE_PRIVATE(MediaSession);
 	L_DISABLE_COPY(MediaSession);

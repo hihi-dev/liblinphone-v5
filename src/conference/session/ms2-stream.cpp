@@ -93,7 +93,8 @@ void MS2Stream::removeFromBundle(){
 }
 
 void MS2Stream::initRtpBundle(const OfferAnswerContext &params){
-	int index = sal_media_description_get_index_of_transport_owner(params.resultMediaDescription, params.resultStreamDescription);
+	const auto & resultStreamDesc = params.getResultStreamDescription();
+	int index = params.resultMediaDescription->getIndexOfTransportOwner(resultStreamDesc);
 	if (index == -1) {
 		lInfo() << *this << " is not part of any bundle";
 		removeFromBundle();
@@ -106,10 +107,11 @@ void MS2Stream::initRtpBundle(const OfferAnswerContext &params){
 		removeFromBundle();
 		return;
 	}
-	RtpBundle * bundle = mBundleOwner->createOrGetRtpBundle(params.resultStreamDescription);
+	RtpBundle * bundle = mBundleOwner->createOrGetRtpBundle(resultStreamDesc);
 	if (bundle && mBundleOwner != this && mRtpBundle == nullptr){
-		lInfo() << "Stream " << *this << " added to rtp bundle " << bundle << " with mid '" << params.resultStreamDescription->mid << "'";
-		rtp_bundle_add_session(bundle, params.resultStreamDescription->mid, mSessions.rtp_session);
+		const auto & mid = resultStreamDesc.getChosenConfiguration().getMid();
+		lInfo() << "Stream " << *this << " added to rtp bundle " << bundle << " with mid '" << mid << "'";
+		rtp_bundle_add_session(bundle, L_STRING_TO_C(mid), mSessions.rtp_session);
 		mRtpBundle = bundle;
 		mOwnsBundle = false;
 		getMediaSessionPrivate().getCurrentParams()->enableRtpBundle(true);
@@ -120,12 +122,14 @@ void MS2Stream::initRtpBundle(const OfferAnswerContext &params){
 	rtp_session_set_source_description(mSessions.rtp_session, getMediaSessionPrivate().getMe()->getAddress().asString().c_str(), NULL, NULL, NULL, NULL, userAgent.c_str(), NULL);
 }
 
-RtpBundle *MS2Stream::createOrGetRtpBundle(const SalStreamDescription *sd){
+RtpBundle *MS2Stream::createOrGetRtpBundle(const SalStreamDescription & sd){
 	if (!mRtpBundle){
 		mRtpBundle = rtp_bundle_new();
-		lInfo() << "Stream " << *this << " with mid '" << sd->mid << "'is the owner of rtp bundle " << mRtpBundle;
-		rtp_bundle_add_session(mRtpBundle, sd->mid, mSessions.rtp_session);
-		rtp_bundle_set_mid_extension_id(mRtpBundle, sd->mid_rtp_ext_header_id);
+		const auto & mid = sd.getChosenConfiguration().getMid();
+		const auto & mid_rtp_ext_header_id = sd.getChosenConfiguration().getMidRtpExtHeaderId();
+		lInfo() << "Stream " << *this << " with mid '" << mid << "'is the owner of rtp bundle " << mRtpBundle;
+		rtp_bundle_add_session(mRtpBundle, L_STRING_TO_C(mid), mSessions.rtp_session);
+		rtp_bundle_set_mid_extension_id(mRtpBundle, mid_rtp_ext_header_id);
 		mOwnsBundle = true;
 		getMediaSessionPrivate().getCurrentParams()->enableRtpBundle(true);
 	}
@@ -169,45 +173,218 @@ string MS2Stream::getBindIp(){
 	return bindIp;
 }
 
+bool MS2Stream::encryptionFound(const SalStreamDescription::tcap_map_t & caps, const LinphoneMediaEncryption encEnum) const {
+	const auto & it = std::find_if(caps.cbegin(), caps.cend(), [this, &encEnum] (const auto & cap) {
+		return (cap.second.compare(sal_media_proto_to_string(linphone_media_encryption_to_sal_media_proto(encEnum, (this->getMediaSessionPrivate().getParams()->avpfEnabled() ? TRUE : FALSE)))) == 0);
+	});
+	return (it != caps.end());
+}
+
+void MS2Stream::addAcapToStream(std::shared_ptr<SalMediaDescription> & desc, const PotentialCfgGraph::session_description_base_cap::key_type & streamIdx, const std::string & attrName, const std::string & attrValue) {
+	const auto & acaps = desc->getAllAcapForStream(streamIdx);
+	const auto nameValueMatch = std::find_if(acaps.cbegin(), acaps.cend(), [&attrName, &attrValue] (const auto & cap) {
+		const auto & nameValuePair = cap.second;
+		const auto & name = nameValuePair.first;
+		const auto & value = nameValuePair.second;
+		return ((name.compare(attrName) == 0) && (value.compare(attrValue) == 0));
+	});
+	// Do not add duplicates acaps
+	if (nameValueMatch == acaps.cend()) {
+		const auto & idx = desc->getFreeAcapIdx();
+		lInfo() << "Adding attribute protocol " << attrName << " with value " << attrValue << " to stream " << streamIdx << " at index " << idx;
+		desc->addAcapToStream(streamIdx, idx, attrName, attrValue);
+	}
+}
+
 void MS2Stream::fillLocalMediaDescription(OfferAnswerContext & ctx){
-	SalStreamDescription *localDesc = ctx.localStreamDescription;
-	strncpy(localDesc->rtp_addr, getPublicIp().c_str(), sizeof(localDesc->rtp_addr) - 1);
-	strncpy(localDesc->rtcp_addr, getPublicIp().c_str(), sizeof(localDesc->rtcp_addr) -1);
+	auto & localDesc = const_cast<SalStreamDescription &>(ctx.getLocalStreamDescription());
+	localDesc.rtp_addr = getPublicIp();
+	localDesc.rtcp_addr = getPublicIp();
 	
-	if (localDesc->rtp_port == SAL_STREAM_DESCRIPTION_PORT_TO_BE_DETERMINED && localDesc->payloads != nullptr){
+	if (localDesc.rtp_port == SAL_STREAM_DESCRIPTION_PORT_TO_BE_DETERMINED && !localDesc.getPayloads().empty()){
 		/* Don't fill ports if no codecs are defined. The stream is not valid and should be disabled.*/
-		localDesc->rtp_port = mPortConfig.rtpPort;
-		localDesc->rtcp_port = mPortConfig.rtcpPort;
+		if (linphone_core_is_zero_rtp_port_for_stream_inactive_enabled(getCCore()) && (localDesc.getDirection() == SalStreamInactive)) {
+			localDesc.rtp_port = 0;
+			localDesc.rtcp_port = 0;
+		} else {
+			localDesc.rtp_port = mPortConfig.rtpPort;
+			localDesc.rtcp_port = mPortConfig.rtcpPort;
+		}
 	}
 	if (!isTransportOwner()){
 		/* A secondary stream part of a bundle must set port to zero and add the bundle-only attribute. */
-		localDesc->rtp_port = 0;
-		localDesc->bundle_only = TRUE;
+		localDesc.rtp_port = 0;
+		localDesc.setBundleOnly(TRUE);
 	}
 	
-	localDesc->rtp_ssrc = rtp_session_get_send_ssrc(mSessions.rtp_session);
-	
-	if (linphone_core_media_encryption_supported(getCCore(), LinphoneMediaEncryptionZRTP)) {
+	localDesc.cfgs[localDesc.getChosenConfigurationIndex()].rtp_ssrc = rtp_session_get_send_ssrc(mSessions.rtp_session);
+
+	// The negotiated encryption must remain unchanged if:
+	// - internal update
+	// - pausing a call
+	// - resuming a call
+	const auto mediaEncryption = (((getMediaSession().getState() == CallSession::State::Resuming) || (getMediaSession().getState() == CallSession::State::Pausing) || getMediaSessionPrivate().getParams()->getPrivate()->getInternalCallUpdate()) ? getMediaSessionPrivate().getNegotiatedMediaEncryption() : getMediaSessionPrivate().getParams()->getMediaEncryption());
+	const bool addZrtpAttributes = (mediaEncryption == LinphoneMediaEncryptionZRTP) && ((localDesc.getChosenConfiguration().getProto() == SalProtoRtpAvp) || (localDesc.getChosenConfiguration().getProto() == SalProtoRtpAvpf));
+	if (addZrtpAttributes) {
 		/* set the hello hash */
+		uint8_t enableZrtpHash = false;
+		uint8_t zrtphash[128];
+		// Initialize ZRTP if not already done
+		// This may happen when adding a stream through a reINVITE
+		if (!mSessions.zrtp_context) {
+			initZrtp();
+			// Copy newly created zrtp context into mSessions
+			media_stream_reclaim_sessions(getMediaStream(), &mSessions);
+		}
 		if (mSessions.zrtp_context) {
-			ms_zrtp_getHelloHash(mSessions.zrtp_context, localDesc->zrtphash, 128);
+			ms_zrtp_getHelloHash(mSessions.zrtp_context, zrtphash, sizeof(zrtphash));
 			/* Turn on the flag to use it if ZRTP is set */
-			localDesc->haveZrtpHash = (getMediaSessionPrivate().getParams()->getMediaEncryption() == LinphoneMediaEncryptionZRTP);
-		} else
-			localDesc->haveZrtpHash = 0;
+			enableZrtpHash = addZrtpAttributes;
+		}
+
+		localDesc.setZrtpHash(enableZrtpHash, zrtphash);
 	}
-	if (sal_stream_description_has_dtls(localDesc)) {
+	if (localDesc.hasDtls()) {
 		/* Get the self fingerprint from call (it's computed at stream init) */
-		strncpy(localDesc->dtls_fingerprint, mDtlsFingerPrint.c_str(), sizeof(localDesc->dtls_fingerprint) - 1);
 		/* If we are offering, SDP will have actpass setup attribute when role is unset, if we are responding the result mediadescription will be set to SalDtlsRoleIsClient */
-		localDesc->dtls_role = SalDtlsRoleUnset;
+		localDesc.setDtls(SalDtlsRoleUnset, mDtlsFingerPrint);
 	} else {
-		localDesc->dtls_fingerprint[0] = '\0';
-		localDesc->dtls_role = SalDtlsRoleInvalid;
+		localDesc.setDtls(SalDtlsRoleInvalid);
 	}
 	/* In case we were offered multicast, we become multicast receiver. The local media description must reflect this. */
-	localDesc->multicast_role = mPortConfig.multicastRole;
+	localDesc.multicast_role = mPortConfig.multicastRole;
+
+	fillPotentialCfgGraph(ctx);
+
 	Stream::fillLocalMediaDescription(ctx);
+}
+
+void MS2Stream::fillPotentialCfgGraph(OfferAnswerContext & ctx){
+	auto & localMediaDesc = ctx.localMediaDescription;
+	const auto & streamIndex = static_cast<unsigned int>(ctx.streamIndex);
+	if (localMediaDesc) {
+		const auto & tcaps = localMediaDesc->getAllTcapForStream(streamIndex);
+
+		if (!tcaps.empty()) {
+			const auto & stream = localMediaDesc->getStreamIdx(streamIndex);
+			const auto & supportedEncs = stream.getSupportedEncryptionsInPotentialCfgs();
+
+			for (const auto & enc : supportedEncs) {
+
+				// Create acaps and cfgs for supported transport protocols using capability negotiation (RFC5939) attributes
+				const bool found = encryptionFound(tcaps, enc);
+
+				if (found) {
+					if (enc == LinphoneMediaEncryptionDTLS) {
+						// acap for DTLS
+						const std::string fingerprintAttrName("fingerprint");
+
+						// Create DTLS context if not found
+						if (!mSessions.dtls_context) {
+							MediaStream *ms = getMediaStream();
+							initDtlsParams (ms);
+							// Copy newly created dtls context into mSessions
+							media_stream_reclaim_sessions(ms, &mSessions);
+						}
+						addAcapToStream(localMediaDesc, streamIndex, fingerprintAttrName, mDtlsFingerPrint);
+
+						const std::string ssrcAttrName("ssrc");
+						const auto rtpSsrc = rtp_session_get_send_ssrc(mSessions.rtp_session);
+						const auto rtcpCname = getMediaSessionPrivate().getMe()->getAddress().asString();
+						const std::string ssrcAttribute = std::to_string(rtpSsrc) + " cname:" + rtcpCname;
+						addAcapToStream(localMediaDesc, streamIndex, ssrcAttrName, ssrcAttribute);
+
+						const std::string setupAttrName("setup");
+						/* If we are offering, SDP will have actpass setup attribute when role is unset, if we are responding the result mediadescription will be set to SalDtlsRoleIsClient */
+						const std::string setupAttribute = "actpass";
+						addAcapToStream(localMediaDesc, streamIndex, setupAttrName, setupAttribute);
+					} else if (enc == LinphoneMediaEncryptionZRTP) {
+						// acap for ZRTP
+						// Create ZRTP context if not found
+						if (!mSessions.zrtp_context) {
+							MediaStream *ms = getMediaStream();
+							Stream *stream = getGroup().lookupMainStream(getType());
+							if (getType() == SalVideo) {
+#ifdef VIDEO_ENABLED
+								MS2VideoStream *msv = dynamic_cast<MS2VideoStream*>(stream);
+								msv->initZrtp();
+#endif // VIDEO_ENABLED
+							} else if (getType() == SalAudio) {
+								MS2AudioStream *msa = dynamic_cast<MS2AudioStream*>(stream);
+								msa->initZrtp();
+							}
+							// Copy newly created zrtp context into mSessions
+							media_stream_reclaim_sessions(ms, &mSessions);
+						}
+
+						if (mSessions.zrtp_context) {
+							const std::string attrName("zrtp-hash");
+							uint8_t zrtphash[128];
+							ms_zrtp_getHelloHash(mSessions.zrtp_context, zrtphash, sizeof(zrtphash));
+							addAcapToStream(localMediaDesc, streamIndex, attrName, (const char *)zrtphash);
+						} else {
+							lInfo() << "Unable to find zrtp session for stream " << streamIndex;
+						}
+					} else if (enc == LinphoneMediaEncryptionSRTP) {
+						// acap for SRTP
+						const MSCryptoSuite *suites = linphone_core_get_srtp_crypto_suites_array(getCCore());
+						const std::string attrName("crypto");
+						// Copy acap crypto attributes
+						const auto & acaps = localMediaDesc->getAllAcapForStream(streamIndex);
+						const auto & cryptoCap = std::find_if(acaps.cbegin(), acaps.cend(), [&attrName] (const auto & cap) {
+							const auto & nameValuePair = cap.second;
+							const auto & name = nameValuePair.first;
+							return (name.compare(attrName) == 0);
+						});
+
+						const auto & actualCfg = stream.getActualConfiguration();
+						const auto & actualCfgCrypto = actualCfg.crypto;
+						if (!actualCfgCrypto.empty()) {
+							// Copy crypto attributes from actual configuration
+							for (const auto & c : actualCfgCrypto) {
+								MSCryptoSuiteNameParams desc;
+								if (ms_crypto_suite_to_name_params(c.algo,&desc)==0){
+									const auto attrValue = SalStreamConfiguration::cryptoToSdpValue(c);
+									addAcapToStream(localMediaDesc, streamIndex, attrName, attrValue);
+								}
+							}
+						} else if (cryptoCap == acaps.cend()) {
+							// If no crypto attribute is found, generate it
+							for (size_t j = 0; (suites != nullptr) && (suites[j] != MS_CRYPTO_SUITE_INVALID); j++) {
+								SalSrtpCryptoAlgo crypto;
+								getMediaSessionPrivate().setupEncryptionKey(crypto, suites[j], static_cast<unsigned int>(j) + 1);
+								MSCryptoSuiteNameParams desc;
+								if (ms_crypto_suite_to_name_params(crypto.algo,&desc)==0){
+									const auto nameValueMatch = std::find_if(acaps.cbegin(), acaps.cend(), [&attrName, &desc] (const auto & cap) {
+										const auto & nameValuePair = cap.second;
+										const auto & name = nameValuePair.first;
+										const auto & value = nameValuePair.second;
+										return ((name.compare(attrName) == 0) && (value.find(desc.name) != std::string::npos));
+									});
+									char attrValue[128];
+									if (desc.params) {
+										snprintf ( attrValue, sizeof ( attrValue )-1, "%d %s inline:%s %s", crypto.tag, desc.name, crypto.master_key.c_str(),desc.params);
+									} else {
+										snprintf ( attrValue, sizeof ( attrValue )-1, "%d %s inline:%s", crypto.tag, desc.name, crypto.master_key.c_str() );
+									}
+									// Do not add duplicates acaps
+									if (nameValueMatch == acaps.cend()) {
+										addAcapToStream(localMediaDesc, streamIndex, attrName, attrValue);
+									}
+								} else {
+									lError() << "Unable to create parameters for crypto attribute with tag " << crypto.tag << " and master key " << crypto.master_key;
+								}
+							}
+						}
+					} else if (enc == LinphoneMediaEncryptionNone) {
+						lInfo() << "No acap to add to stream description for encryption " << linphone_media_encryption_to_string(enc);
+					}
+				}
+
+			}
+			localMediaDesc->createPotentialConfigurationsForStream(streamIndex, false, false);
+		}
+	}
 }
 
 void MS2Stream::refreshSockets(){
@@ -215,11 +392,11 @@ void MS2Stream::refreshSockets(){
 }
 
 void MS2Stream::initMulticast(const OfferAnswerContext &params) {
-	mPortConfig.multicastRole = params.localStreamDescription->multicast_role;
+	mPortConfig.multicastRole = params.getLocalStreamDescription().multicast_role;
 	
 	if (mPortConfig.multicastRole == SalMulticastReceiver){
-		mPortConfig.multicastIp = params.remoteStreamDescription->rtp_addr;
-		mPortConfig.rtpPort = params.remoteStreamDescription->rtp_port;
+		mPortConfig.multicastIp = params.getRemoteStreamDescription().rtp_addr;
+		mPortConfig.rtpPort = params.getRemoteStreamDescription().rtp_port;
 		mPortConfig.rtcpPort = 0; /*RTCP deactivated in multicast*/
 	}
 	
@@ -230,18 +407,20 @@ void MS2Stream::initMulticast(const OfferAnswerContext &params) {
 void MS2Stream::configureRtpSessionForRtcpFb (const OfferAnswerContext &params) {
 	if (getType() != SalAudio && getType() != SalVideo) return; //No AVPF for other than audio/video
 	
-	rtp_session_enable_avpf_feature(mSessions.rtp_session, ORTP_AVPF_FEATURE_GENERIC_NACK, !!params.resultStreamDescription->rtcp_fb.generic_nack_enabled);
-	rtp_session_enable_avpf_feature(mSessions.rtp_session, ORTP_AVPF_FEATURE_TMMBR, !!params.resultStreamDescription->rtcp_fb.tmmbr_enabled);
+	const auto & resultStreamDesc = params.getResultStreamDescription();
+	rtp_session_enable_avpf_feature(mSessions.rtp_session, ORTP_AVPF_FEATURE_GENERIC_NACK, !!resultStreamDesc.getChosenConfiguration().rtcp_fb.generic_nack_enabled);
+	rtp_session_enable_avpf_feature(mSessions.rtp_session, ORTP_AVPF_FEATURE_TMMBR, !!resultStreamDesc.getChosenConfiguration().rtcp_fb.tmmbr_enabled);
 }
 
 void MS2Stream::configureRtpSessionForRtcpXr(const OfferAnswerContext &params) {
 	OrtpRtcpXrConfiguration currentConfig;
-	const OrtpRtcpXrConfiguration *remoteConfig = &params.remoteStreamDescription->rtcp_xr;
-	if (params.localStreamDescription->dir == SalStreamInactive)
+	const OrtpRtcpXrConfiguration *remoteConfig = &params.getRemoteStreamDescription().getChosenConfiguration().rtcp_xr;
+	auto & localDesc = params.getLocalStreamDescription();
+	if (localDesc.getDirection() == SalStreamInactive)
 		return;
-	else if (params.localStreamDescription->dir == SalStreamRecvOnly) {
+	else if (localDesc.getDirection() == SalStreamRecvOnly) {
 		/* Use local config for unilateral parameters and remote config for collaborative parameters */
-		memcpy(&currentConfig, &params.localStreamDescription->rtcp_xr, sizeof(currentConfig));
+		memcpy(&currentConfig, &localDesc.getChosenConfiguration().rtcp_xr, sizeof(currentConfig));
 		currentConfig.rcvr_rtt_mode = remoteConfig->rcvr_rtt_mode;
 		currentConfig.rcvr_rtt_max_size = remoteConfig->rcvr_rtt_max_size;
 	} else
@@ -256,8 +435,8 @@ void MS2Stream::configureAdaptiveRateControl (const OfferAnswerContext &params) 
 	}
 	bool videoWillBeUsed = false;
 	MediaStream *ms = getMediaStream();
-	const SalStreamDescription *vstream = sal_media_description_find_best_stream(const_cast<SalMediaDescription*>(params.resultMediaDescription), SalVideo);
-	if (vstream && (vstream->dir != SalStreamInactive) && vstream->payloads) {
+	const auto & vstream = params.resultMediaDescription->findBestStream(SalVideo);
+	if ((vstream != Utils::getEmptyConstRefObject<SalStreamDescription>()) && (vstream.getDirection() != SalStreamInactive) && !vstream.getPayloads().empty()) {
 		/* When video is used, do not make adaptive rate control on audio, it is stupid */
 		videoWillBeUsed = true;
 	}
@@ -273,7 +452,7 @@ void MS2Stream::configureAdaptiveRateControl (const OfferAnswerContext &params) 
 	else if (algo == "advanced")
 		isAdvanced = true;
 	
-	if (isAdvanced && !params.resultStreamDescription->rtcp_fb.tmmbr_enabled) {
+	if (isAdvanced && !params.getResultStreamDescription().getChosenConfiguration().rtcp_fb.tmmbr_enabled) {
 		lWarning() << "Advanced adaptive rate control requested but avpf-tmmbr is not activated in this stream. Reverting to basic rate control instead";
 		isAdvanced = false;
 	}
@@ -300,12 +479,12 @@ void MS2Stream::configureAdaptiveRateControl (const OfferAnswerContext &params) 
 
 void MS2Stream::tryEarlyMediaForking(const OfferAnswerContext &ctx){
 	RtpSession *session = mSessions.rtp_session;
-	const SalStreamDescription *newStream = ctx.remoteStreamDescription;
-	const char *rtpAddr = (newStream->rtp_addr[0] != '\0') ? newStream->rtp_addr : ctx.remoteMediaDescription->addr;
-	const char *rtcpAddr = (newStream->rtcp_addr[0] != '\0') ? newStream->rtcp_addr : ctx.remoteMediaDescription->addr;
-	if (!ms_is_multicast(rtpAddr)){
+	const auto & newStream = ctx.getRemoteStreamDescription();
+	std::string rtpAddr = (newStream.rtp_addr.empty() == false) ? newStream.rtp_addr : ctx.remoteMediaDescription->addr;
+	std::string rtcpAddr = (newStream.rtcp_addr.empty() == false) ? newStream.rtcp_addr : ctx.remoteMediaDescription->addr;
+	if (!ms_is_multicast(rtpAddr.c_str())){
 		rtp_session_set_symmetric_rtp(session, false); // Disable symmetric RTP when auxiliary destinations are added.
-		rtp_session_add_aux_remote_addr_full(session, rtpAddr, newStream->rtp_port, rtcpAddr, newStream->rtcp_port);
+		rtp_session_add_aux_remote_addr_full(session, rtpAddr.c_str(), newStream.rtp_port, rtcpAddr.c_str(), newStream.rtcp_port);
 		mUseAuxDestinations = true;
 	}
 	Stream::tryEarlyMediaForking(ctx);
@@ -325,20 +504,20 @@ void MS2Stream::finishEarlyMediaForking(){
  * Indeed, when RTP bundle mode is ON, this information is to be taken in the transport owner stream.
  */
 void MS2Stream::getRtpDestination(const OfferAnswerContext &params, RtpAddressInfo *info){
-	const SalStreamDescription *stream = params.resultStreamDescription;
+	auto stream = params.getResultStreamDescription();
 	if (mRtpBundle && !mOwnsBundle){
 		if (!mBundleOwner){
 			lError() << "Bundle owner shall be set !";
 		}else{
-			stream = &params.resultMediaDescription->streams[mBundleOwner->getIndex()];
+			stream = params.resultMediaDescription->getStreamIdx(static_cast<unsigned int>(mBundleOwner->getIndex()));
 		}
 	}
 	
-	info->rtpAddr = stream->rtp_addr[0] != '\0' ? stream->rtp_addr : params.resultMediaDescription->addr;
+	info->rtpAddr = stream.rtp_addr.empty() == false ? stream.rtp_addr : params.resultMediaDescription->addr;
 	bool isMulticast = !!ms_is_multicast(info->rtpAddr.c_str());
-	info->rtpPort = stream->rtp_port;
-	info->rtcpAddr = stream->rtcp_addr[0] != '\0' ? stream->rtcp_addr : info->rtpAddr;
-	info->rtcpPort = (linphone_core_rtcp_enabled(getCCore()) && !isMulticast) ? (stream->rtcp_port ? stream->rtcp_port : stream->rtp_port + 1) : 0;
+	info->rtpPort = stream.rtp_port;
+	info->rtcpAddr = stream.rtcp_addr.empty() == false ? stream.rtcp_addr : info->rtpAddr;
+	info->rtcpPort = (linphone_core_rtcp_enabled(getCCore()) && !isMulticast) ? (stream.rtcp_port ? stream.rtcp_port : stream.rtp_port + 1) : 0;
 }
 
 /*
@@ -346,9 +525,9 @@ void MS2Stream::getRtpDestination(const OfferAnswerContext &params, RtpAddressIn
  * Return true everything was handled, false otherwise, in which case the caller will have to restart the stream.
  */
 bool MS2Stream::handleBasicChanges(const OfferAnswerContext &params, CallSession::State targetState){
-	const SalStreamDescription *stream = params.resultStreamDescription;
+	const auto & stream = params.getResultStreamDescription();
 	
-	if (stream->dir == SalStreamInactive || !sal_stream_description_enabled(stream)){
+	if ((stream == Utils::getEmptyConstRefObject<SalStreamDescription>()) || stream.getDirection() == SalStreamInactive || !stream.enabled()){
 		/* In this case all we have to do is to ensure that the stream is stopped. */
 		if (getState() != Stopped) stop();
 		return true;
@@ -389,40 +568,33 @@ bool MS2Stream::handleBasicChanges(const OfferAnswerContext &params, CallSession
 }
 
 void MS2Stream::render(const OfferAnswerContext &params, CallSession::State targetState){
-	const SalStreamDescription *stream = params.resultStreamDescription;
-	const char *rtpAddr = (stream->rtp_addr[0] != '\0') ? stream->rtp_addr : params.resultMediaDescription->addr;
-	bool isMulticast = !!ms_is_multicast(rtpAddr);
+	const auto & stream = params.getResultStreamDescription();
+	std::string rtpAddr = (stream.rtp_addr.empty() == false) ? stream.rtp_addr : params.resultMediaDescription->addr;
+	bool isMulticast = !!ms_is_multicast(rtpAddr.c_str());
 	MediaStream *ms = getMediaStream();
 	
 	if (getIceService().isActive() || (getMediaSessionPrivate().getParams()->earlyMediaSendingEnabled() 
 		&& (targetState == CallSession::State::OutgoingEarlyMedia))) {
 		rtp_session_set_symmetric_rtp(mSessions.rtp_session, false);
 	}
-	
+
 	if (getState() == Stream::Stopped){
 		/* These things below are not expected to change while the stream is running. */
 		media_stream_set_max_network_bitrate(getMediaStream(), mOutputBandwidth * 1000);
 		if (isMulticast)
-			rtp_session_set_multicast_ttl(mSessions.rtp_session, stream->ttl);
-		rtp_session_enable_rtcp_mux(mSessions.rtp_session, stream->rtcp_mux);
-			// Valid local tags are > 0
-		if (sal_stream_description_has_srtp(stream)) {
-			int cryptoIdx = Sal::findCryptoIndexFromTag(params.localStreamDescription->crypto, static_cast<unsigned char>(stream->crypto_local_tag));
-			if (cryptoIdx >= 0) {
-				ms_media_stream_sessions_set_srtp_recv_key_b64(&ms->sessions, stream->crypto[0].algo, stream->crypto[0].master_key);
-				ms_media_stream_sessions_set_srtp_send_key_b64(&ms->sessions, stream->crypto[0].algo, 
-									params.localStreamDescription->crypto[cryptoIdx].master_key);
-			} else
-				lWarning() << "Failed to find local crypto algo with tag: " << stream->crypto_local_tag;
-		}
+			rtp_session_set_multicast_ttl(mSessions.rtp_session, stream.getChosenConfiguration().ttl);
+		rtp_session_enable_rtcp_mux(mSessions.rtp_session, stream.getChosenConfiguration().rtcp_mux);
+
+		setupSrtp(params);
+
 		ms_media_stream_sessions_set_encryption_mandatory(&ms->sessions, getMediaSessionPrivate().isEncryptionMandatory());
 		configureRtpSessionForRtcpFb(params);
 		configureRtpSessionForRtcpXr(params);
 		configureAdaptiveRateControl(params);
 		
-		if (stream->dtls_role != SalDtlsRoleInvalid){ /* If DTLS is available at both end points */
+		if (stream.getChosenConfiguration().dtls_role != SalDtlsRoleInvalid){ /* If DTLS is available at both end points */
 			/* Give the peer certificate fingerprint to dtls context */
-			ms_dtls_srtp_set_peer_fingerprint(ms->sessions.dtls_context, params.remoteStreamDescription->dtls_fingerprint);
+			ms_dtls_srtp_set_peer_fingerprint(ms->sessions.dtls_context, L_STRING_TO_C(params.getRemoteStreamDescription().getChosenConfiguration().dtls_fingerprint));
 		}
 	}
 	
@@ -513,6 +685,12 @@ void MS2Stream::configureRtpSession(RtpSession *session){
 
 void MS2Stream::setupDtlsParams (MediaStream *ms) {
 	if (getMediaSessionPrivate().getParams()->getMediaEncryption() == LinphoneMediaEncryptionDTLS) {
+		initDtlsParams (ms);
+	}
+}
+
+void MS2Stream::initDtlsParams (MediaStream *ms) {
+	if (ms) {
 		MSDtlsSrtpParams dtlsParams = { 0 };
 		
 		/* TODO : search for a certificate with CNAME=sip uri(retrieved from variable me) or default : linphone-dtls-default-identity */
@@ -554,10 +732,14 @@ void MS2Stream::setupDtlsParams (MediaStream *ms) {
 }
 
 void MS2Stream::startDtls(const OfferAnswerContext &params){
-	if (mDtlsStarted) return;
-	if (!sal_stream_description_has_dtls(params.resultStreamDescription)) return;
-	
-	if (params.resultStreamDescription->dtls_role == SalDtlsRoleInvalid){
+	if (mDtlsStarted) {
+		lWarning() << "DTLS engine on stream session [" << &mSessions << "] is already started";
+		return;
+	}
+	const auto & resultStreamDesc = params.getResultStreamDescription();
+	if (!resultStreamDesc.hasDtls()) return;
+
+	if (resultStreamDesc.getChosenConfiguration().dtls_role == SalDtlsRoleInvalid){
 		lWarning() << "Unable to start DTLS engine on stream session [" << &mSessions << "], Dtls role in resulting media description is invalid";
 	}else {
 		if (!isTransportOwner()){
@@ -570,8 +752,8 @@ void MS2Stream::startDtls(const OfferAnswerContext &params){
 		
 		/* If DTLS is available at both end points */
 		/* Give the peer certificate fingerprint to dtls context */
-		ms_dtls_srtp_set_peer_fingerprint(mSessions.dtls_context, params.remoteStreamDescription->dtls_fingerprint);
-		ms_dtls_srtp_set_role(mSessions.dtls_context, (params.resultStreamDescription->dtls_role == SalDtlsRoleIsClient) ? MSDtlsSrtpRoleIsClient : MSDtlsSrtpRoleIsServer); /* Set the role to client */
+		ms_dtls_srtp_set_peer_fingerprint(mSessions.dtls_context, L_STRING_TO_C(params.getRemoteStreamDescription().getChosenConfiguration().dtls_fingerprint));
+		ms_dtls_srtp_set_role(mSessions.dtls_context, (resultStreamDesc.getChosenConfiguration().dtls_role == SalDtlsRoleIsClient) ? MSDtlsSrtpRoleIsClient : MSDtlsSrtpRoleIsServer); /* Set the role to client */
 		ms_dtls_srtp_start(mSessions.dtls_context); /* Then start the engine, it will send the DTLS client Hello */
 		mDtlsStarted = true;
 	}
@@ -615,34 +797,74 @@ void MS2Stream::initializeSessions(MediaStream *stream){
 	
 }
 
-void MS2Stream::updateCryptoParameters(const OfferAnswerContext &params) {
-	const SalStreamDescription *localStreamDesc = params.localStreamDescription;
-	const SalStreamDescription *newStream = params.resultStreamDescription;
+void MS2Stream::setupSrtp(const OfferAnswerContext &params) {
+	const auto & localStreamDesc = params.getLocalStreamDescription();
+	const auto & resultStreamDesc = params.getResultStreamDescription();
 	MediaStream * ms = getMediaStream();
-	
-	if (newStream->proto == SalProtoRtpSavpf || newStream->proto == SalProtoRtpSavp){
-		int cryptoIdx = Sal::findCryptoIndexFromTag(localStreamDesc->crypto, static_cast<unsigned char>(newStream->crypto_local_tag));
+
+	if (resultStreamDesc.hasSrtp()){
+		// Valid local tags are > 0
+		int cryptoIdx = Sal::findCryptoIndexFromTag(localStreamDesc.getChosenConfiguration().crypto, static_cast<unsigned char>(resultStreamDesc.getChosenConfiguration().crypto_local_tag));
 		if (cryptoIdx >= 0) {
-			if (params.localStreamDescriptionChanges & SAL_MEDIA_DESCRIPTION_CRYPTO_KEYS_CHANGED){
-				ms_media_stream_sessions_set_srtp_send_key_b64(&ms->sessions, newStream->crypto[0].algo, localStreamDesc->crypto[cryptoIdx].master_key);
-			}
-			ms_media_stream_sessions_set_srtp_recv_key_b64(&ms->sessions, newStream->crypto[0].algo, newStream->crypto[0].master_key);
-		} else
-			lWarning() << "Failed to find local crypto algo with tag: " << newStream->crypto_local_tag;
+			MSCryptoSuite algo = resultStreamDesc.getChosenConfiguration().crypto[0].algo;
+			ms_media_stream_sessions_set_srtp_send_key_b64(&ms->sessions, algo, L_STRING_TO_C(localStreamDesc.getChosenConfiguration().crypto[(size_t)cryptoIdx].master_key));
+			ms_media_stream_sessions_set_srtp_recv_key_b64(&ms->sessions, algo, L_STRING_TO_C(resultStreamDesc.getChosenConfiguration().crypto[0].master_key));
+		} else {
+			lWarning() << "Failed to find local crypto algo with tag: " << resultStreamDesc.getChosenConfiguration().crypto_local_tag;
+		}
+	} else if (mSessions.srtp_context && (getMediaSessionPrivate().getNegotiatedMediaEncryption() == LinphoneMediaEncryptionNone)) {
+		// If the stream has SRTP disabled, set the key to a NULL value
+		MSCryptoSuite algo = MS_CRYPTO_SUITE_INVALID;
+		ms_media_stream_sessions_set_srtp_send_key_b64(&ms->sessions, algo, NULL);
+		ms_media_stream_sessions_set_srtp_recv_key_b64(&ms->sessions, algo, NULL);
 	}
-	startDtls(params);
+}
+
+void MS2Stream::updateCryptoParameters(const OfferAnswerContext &params) {
+	const auto & resultStreamDesc = params.getResultStreamDescription();
+	MediaStream * ms = getMediaStream();
+
+	setupSrtp(params);
+
+	if (resultStreamDesc.hasZrtp()) {
+		if (!mSessions.zrtp_context) {
+			initZrtp();
+			// Copy newly created zrtp context into mSessions
+			media_stream_reclaim_sessions(ms, &mSessions);
+		}
+	} else if (mSessions.zrtp_context) {
+		media_stream_reset_zrtp_context(ms);
+	}
+
+	if (resultStreamDesc.hasDtls()) {
+		if (!mSessions.dtls_context) {
+			MediaStream *ms = getMediaStream();
+			initDtlsParams (ms);
+			// Copy newly created dtls context into mSessions
+			media_stream_reclaim_sessions(ms, &mSessions);
+		}
+
+		startDtls(params);
+	} else {
+		mDtlsStarted = false;
+		if (mSessions.dtls_context) {
+			ms_dtls_srtp_reset_context(mSessions.dtls_context);
+		}
+	}
+
 }
 
 void MS2Stream::updateDestinations(const OfferAnswerContext &params) {
-	if (params.resultStreamDescription->rtp_port == 0 && params.resultStreamDescription->bundle_only){
+	const auto & resultStreamDesc = params.getResultStreamDescription();
+	if (resultStreamDesc.rtp_port == 0 && resultStreamDesc.isBundleOnly()){
 		/* we can ignore */
 		return;
 	}
 	
-	const char *rtpAddr = (params.resultStreamDescription->rtp_addr[0] != '\0') ? params.resultStreamDescription->rtp_addr : params.resultMediaDescription->addr;
-	const char *rtcpAddr = (params.resultStreamDescription->rtcp_addr[0] != '\0') ? params.resultStreamDescription->rtcp_addr : params.resultMediaDescription->addr;
-	lInfo() << "Change audio stream destination: RTP=" << rtpAddr << ":" << params.resultStreamDescription->rtp_port << " RTCP=" << rtcpAddr << ":" << params.resultStreamDescription->rtcp_port;
-	rtp_session_set_remote_addr_full(mSessions.rtp_session, rtpAddr, params.resultStreamDescription->rtp_port, rtcpAddr, params.resultStreamDescription->rtcp_port);
+	std::string rtpAddr = (resultStreamDesc.rtp_addr.empty() == false) ? resultStreamDesc.rtp_addr : params.resultMediaDescription->addr;
+	std::string rtcpAddr = (resultStreamDesc.rtcp_addr.empty() == false) ? resultStreamDesc.rtcp_addr : params.resultMediaDescription->addr;
+	lInfo() << "Change audio stream destination: RTP=" << rtpAddr << ":" << resultStreamDesc.rtp_port << " RTCP=" << rtcpAddr << ":" << resultStreamDesc.rtcp_port;
+	rtp_session_set_remote_addr_full(mSessions.rtp_session, rtpAddr.c_str(), resultStreamDesc.rtp_port, rtcpAddr.c_str(), resultStreamDesc.rtcp_port);
 }
 
 void MS2Stream::startEventHandling(){
@@ -705,10 +927,10 @@ void MS2Stream::finishPrepare(){
 	stopEventHandling();
 }
 
-int MS2Stream::getIdealAudioBandwidth (const SalMediaDescription *md, const SalStreamDescription *desc) {
+int MS2Stream::getIdealAudioBandwidth (const std::shared_ptr<SalMediaDescription> & md, const SalStreamDescription & desc) {
 	int remoteBandwidth = 0;
-	if (desc->bandwidth > 0)
-		remoteBandwidth = desc->bandwidth;
+	if (desc.bandwidth > 0)
+		remoteBandwidth = desc.bandwidth;
 	else if (md->bandwidth > 0) {
 		/* Case where b=AS is given globally, not per stream */
 		remoteBandwidth = md->bandwidth;
@@ -721,7 +943,7 @@ int MS2Stream::getIdealAudioBandwidth (const SalMediaDescription *md, const SalS
 	} else
 		uploadBandwidth = linphone_core_get_upload_bandwidth(getCCore());
 	uploadBandwidth = PayloadTypeHandler::getMinBandwidth(uploadBandwidth, remoteBandwidth);
-	if (!linphone_core_media_description_contains_video_stream(md) || forced)
+	if ((md->nbActiveStreamsOfType(SalVideo) == 0) || forced)
 		return uploadBandwidth;
 	
 	/*
@@ -739,30 +961,29 @@ int MS2Stream::getIdealAudioBandwidth (const SalMediaDescription *md, const SalS
 	return uploadBandwidth;
 }
 
-RtpProfile * MS2Stream::makeProfile(const SalMediaDescription *md, const SalStreamDescription *desc, int *usedPt) {
+RtpProfile * MS2Stream::makeProfile(const std::shared_ptr<SalMediaDescription> & md, const SalStreamDescription & desc, int *usedPt) {
 	if (mRtpProfile){
 		rtp_profile_destroy(mRtpProfile);
 		mRtpProfile = nullptr;
 	}
 	*usedPt = -1;
 	int bandwidth = 0;
-	if (desc->type == SalAudio)
+	if (desc.type == SalAudio)
 		bandwidth = getIdealAudioBandwidth(md, desc);
-	else if (desc->type == SalVideo)
+	else if (desc.type == SalVideo)
 		bandwidth = getGroup().getVideoBandwidth(md, desc);
 
 	bool first = true;
 	RtpProfile *profile = rtp_profile_new("Call profile");
-	for (const bctbx_list_t *elem = desc->payloads; elem != nullptr; elem = bctbx_list_next(elem)) {
-		OrtpPayloadType *pt = reinterpret_cast<OrtpPayloadType *>(bctbx_list_get_data(elem));
+	for (const auto & pt : desc.getPayloads()) {
 		/* Make a copy of the payload type, so that we left the ones from the SalStreamDescription unchanged.
 		 * If the SalStreamDescription is freed, this will have no impact on the running streams. */
-		pt = payload_type_clone(pt);
+		auto clonedPt = payload_type_clone(pt);
 		int upPtime = 0;
-		if ((pt->flags & PAYLOAD_TYPE_FLAG_CAN_SEND) && first) {
+		if ((clonedPt->flags & PAYLOAD_TYPE_FLAG_CAN_SEND) && first) {
 			/* First codec in list is the selected one */
-			if (desc->type == SalAudio) {
-				bandwidth = getGroup().updateAllocatedAudioBandwidth(pt, bandwidth);
+			if (desc.type == SalAudio) {
+				bandwidth = getGroup().updateAllocatedAudioBandwidth(clonedPt, bandwidth);
 				upPtime = getMediaSessionPrivate().getParams()->getPrivate()->getUpPtime();
 				if (!upPtime)
 					upPtime = linphone_core_get_upload_ptime(getCCore());
@@ -771,31 +992,31 @@ RtpProfile * MS2Stream::makeProfile(const SalMediaDescription *md, const SalStre
 		}
 		if (*usedPt == -1) {
 			/* Don't select telephone-event as a payload type */
-			if (strcasecmp(pt->mime_type, "telephone-event") != 0)
-				*usedPt = payload_type_get_number(pt);
+			if (strcasecmp(clonedPt->mime_type, "telephone-event") != 0)
+				*usedPt = payload_type_get_number(clonedPt);
 		}
-		if (pt->flags & PAYLOAD_TYPE_BITRATE_OVERRIDE) {
-			lInfo() << "Payload type [" << pt->mime_type << "/" << pt->clock_rate << "] has explicit bitrate [" << (pt->normal_bitrate / 1000) << "] kbit/s";
-			pt->normal_bitrate = PayloadTypeHandler::getMinBandwidth(pt->normal_bitrate, bandwidth * 1000);
+		if (clonedPt->flags & PAYLOAD_TYPE_BITRATE_OVERRIDE) {
+			lInfo() << "Payload type [" << clonedPt->mime_type << "/" << clonedPt->clock_rate << "] has explicit bitrate [" << (clonedPt->normal_bitrate / 1000) << "] kbit/s";
+			clonedPt->normal_bitrate = PayloadTypeHandler::getMinBandwidth(clonedPt->normal_bitrate, bandwidth * 1000);
 		} else
-			pt->normal_bitrate = bandwidth * 1000;
-		if (desc->maxptime > 0) {// follow the same schema for maxptime as for ptime. (I.E add it to fmtp)
+			clonedPt->normal_bitrate = bandwidth * 1000;
+		if (desc.getChosenConfiguration().maxptime > 0) {// follow the same schema for maxptime as for ptime. (I.E add it to fmtp)
 			ostringstream os;
-			os << "maxptime=" << desc->maxptime;
-			payload_type_append_send_fmtp(pt, os.str().c_str());
+			os << "maxptime=" << desc.getChosenConfiguration().maxptime;
+			payload_type_append_send_fmtp(clonedPt, os.str().c_str());
 		}
-		if (desc->ptime > 0)
-			upPtime = desc->ptime;
+		if (desc.getChosenConfiguration().ptime > 0)
+			upPtime = desc.getChosenConfiguration().ptime;
 		if (upPtime > 0) {
 			ostringstream os;
 			os << "ptime=" << upPtime;
-			payload_type_append_send_fmtp(pt, os.str().c_str());
+			payload_type_append_send_fmtp(clonedPt, os.str().c_str());
 		}
-		int number = payload_type_get_number(pt);
+		int number = payload_type_get_number(clonedPt);
 		if (rtp_profile_get_payload(profile, number))
 			lWarning() << "A payload type with number " << number << " already exists in profile!";
 		else
-			rtp_profile_set_payload(profile, number, pt);
+			rtp_profile_set_payload(profile, number, clonedPt);
 	}
 	mRtpProfile = profile;
 	mOutputBandwidth = bandwidth;
@@ -1016,9 +1237,10 @@ bool MS2Stream::isEncrypted() const{
 		}else{
 			lError() << "MS2Stream::isEncrypted(): no bundle owner !";
 		}
-		return false;
+	} else if (getMediaStream()) {
+		return media_stream_secured(getMediaStream());
 	}
-	return media_stream_secured(getMediaStream());
+	return false;
 }
 
 bool MS2Stream::isMuted()const{

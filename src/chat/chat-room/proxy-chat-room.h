@@ -72,6 +72,7 @@ public:
 
 	std::shared_ptr<ChatMessage> createFileTransferMessage (FileContent *content) override;
 	std::shared_ptr<ChatMessage> createForwardMessage (const std::shared_ptr<ChatMessage> &msg) override;
+	std::shared_ptr<ChatMessage> createReplyMessage (const std::shared_ptr<ChatMessage> &msg) override;
 
 	std::shared_ptr<ChatMessage> findChatMessage (const std::string &messageId) const override;
 	std::shared_ptr<ChatMessage> findChatMessage (
@@ -86,7 +87,7 @@ public:
 	long getEphemeralLifetime () const override;
 	bool ephemeralSupportedByAllParticipants () const override;
 
-	const ConferenceAddress getConferenceAddress () const override;
+	const ConferenceAddress &getConferenceAddress () const override;
 	std::shared_ptr<Conference> getConference () const override;
 	bool canHandleParticipants () const override;
 

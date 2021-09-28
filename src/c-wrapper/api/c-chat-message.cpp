@@ -54,12 +54,6 @@ L_DECLARE_C_OBJECT_IMPL_WITH_XTORS(ChatMessage,
 
 	struct Cache {
 		~Cache () {
-			if (from)
-				linphone_address_unref(from);
-			if (to)
-				linphone_address_unref(to);
-			if (local)
-				linphone_address_unref(local);
 			if (contents)
 				bctbx_list_free(contents);
 		}
@@ -67,10 +61,6 @@ L_DECLARE_C_OBJECT_IMPL_WITH_XTORS(ChatMessage,
 		string contentType;
 		string textContentBody;
 		string customHeaderValue;
-
-		LinphoneAddress *from = nullptr;
-		LinphoneAddress *to = nullptr;
-		LinphoneAddress *local = nullptr;
 
 		bctbx_list_t *contents = nullptr;
 	} mutable cache;
@@ -140,46 +130,49 @@ const bctbx_list_t *linphone_chat_message_get_callbacks_list(const LinphoneChatM
 }
 
 #define NOTIFY_IF_EXIST(cbName, functionName, ...) \
-	bctbx_list_t *callbacksCopy = bctbx_list_copy(linphone_chat_message_get_callbacks_list(msg)); \
-	for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) { \
-		linphone_chat_message_set_current_callbacks(msg, reinterpret_cast<LinphoneChatMessageCbs *>(bctbx_list_get_data(it))); \
-		LinphoneChatMessageCbs ## cbName ## Cb cb = linphone_chat_message_cbs_get_ ## functionName (linphone_chat_message_get_current_callbacks(msg)); \
-		if (cb) \
-			cb(__VA_ARGS__); \
-	} \
-	linphone_chat_message_set_current_callbacks(msg, nullptr); \
-	bctbx_list_free(callbacksCopy);
+	do{\
+		bctbx_list_t *callbacksCopy = bctbx_list_copy_with_data(linphone_chat_message_get_callbacks_list(msg), (bctbx_list_copy_func)belle_sip_object_ref); \
+		for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) { \
+			LinphoneChatMessageCbs *cbs = static_cast<LinphoneChatMessageCbs *>(bctbx_list_get_data(it));\
+			linphone_chat_message_set_current_callbacks(msg, cbs); \
+			LinphoneChatMessageCbs ## cbName ## Cb cb = linphone_chat_message_cbs_get_ ## functionName (cbs); \
+			if (cb) \
+				cb(__VA_ARGS__); \
+		} \
+		linphone_chat_message_set_current_callbacks(msg, nullptr); \
+		bctbx_list_free_with_data(callbacksCopy, (bctbx_list_free_func)belle_sip_object_unref);\
+	}while(0)
 
 void _linphone_chat_message_notify_msg_state_changed(LinphoneChatMessage *msg, LinphoneChatMessageState state) {
-	NOTIFY_IF_EXIST(MsgStateChanged, msg_state_changed, msg, state)
+	NOTIFY_IF_EXIST(MsgStateChanged, msg_state_changed, msg, state);
 }
 
 void _linphone_chat_message_notify_participant_imdn_state_changed(LinphoneChatMessage* msg, const LinphoneParticipantImdnState *state) {
-	NOTIFY_IF_EXIST(ParticipantImdnStateChanged, participant_imdn_state_changed, msg, state)
+	NOTIFY_IF_EXIST(ParticipantImdnStateChanged, participant_imdn_state_changed, msg, state);
 }
 
 void _linphone_chat_message_notify_file_transfer_recv(LinphoneChatMessage *msg, LinphoneContent* content, const LinphoneBuffer *buffer) {
-	NOTIFY_IF_EXIST(FileTransferRecv, file_transfer_recv, msg, content, buffer)
+	NOTIFY_IF_EXIST(FileTransferRecv, file_transfer_recv, msg, content, buffer);
 }
 
 void _linphone_chat_message_notify_file_transfer_send(LinphoneChatMessage *msg, LinphoneContent* content, size_t offset, size_t size) {
-	NOTIFY_IF_EXIST(FileTransferSend, file_transfer_send, msg, content, offset, size)
+	NOTIFY_IF_EXIST(FileTransferSend, file_transfer_send, msg, content, offset, size);
 }
 
 void _linphone_chat_message_notify_file_transfer_send_chunk(LinphoneChatMessage *msg, LinphoneContent* content, size_t offset, size_t size, LinphoneBuffer *buffer) {
-	NOTIFY_IF_EXIST(FileTransferSendChunk, file_transfer_send_chunk, msg, content, offset, size, buffer)
+	NOTIFY_IF_EXIST(FileTransferSendChunk, file_transfer_send_chunk, msg, content, offset, size, buffer);
 }
 
 void _linphone_chat_message_notify_file_transfer_progress_indication(LinphoneChatMessage *msg, LinphoneContent* content, size_t offset, size_t total) {
-	NOTIFY_IF_EXIST(FileTransferProgressIndication, file_transfer_progress_indication, msg, content, offset, total)
+	NOTIFY_IF_EXIST(FileTransferProgressIndication, file_transfer_progress_indication, msg, content, offset, total);
 }
 
 void _linphone_chat_message_notify_ephemeral_message_timer_started(LinphoneChatMessage* msg) {
-	NOTIFY_IF_EXIST(EphemeralMessageTimerStarted, ephemeral_message_timer_started, msg)
+	NOTIFY_IF_EXIST(EphemeralMessageTimerStarted, ephemeral_message_timer_started, msg);
 }
 
 void _linphone_chat_message_notify_ephemeral_message_deleted(LinphoneChatMessage* msg) {
-	NOTIFY_IF_EXIST(EphemeralMessageDeleted, ephemeral_message_deleted, msg)
+	NOTIFY_IF_EXIST(EphemeralMessageDeleted, ephemeral_message_deleted, msg);
 }
 
 // =============================================================================
@@ -235,17 +228,13 @@ void linphone_chat_message_set_appdata (LinphoneChatMessage *msg, const char *da
 }
 
 const LinphoneAddress *linphone_chat_message_get_from_address (const LinphoneChatMessage *msg) {
-	if (msg->cache.from)
-		linphone_address_unref(msg->cache.from);
-	msg->cache.from = linphone_address_new(L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getFromAddress().asString().c_str());
-	return msg->cache.from;
+	const LinphonePrivate::Address & addr = L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getFromAddress().asAddress();
+	return L_GET_C_BACK_PTR(&addr);
 }
 
 const LinphoneAddress *linphone_chat_message_get_to_address (const LinphoneChatMessage *msg) {
-	if (msg->cache.to)
-		linphone_address_unref(msg->cache.to);
-	msg->cache.to = linphone_address_new(L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getToAddress().asString().c_str());
-	return msg->cache.to;
+	const LinphonePrivate::Address & addr = L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getToAddress().asAddress();
+	return L_GET_C_BACK_PTR(&addr);
 }
 
 const char *linphone_chat_message_get_file_transfer_filepath (const LinphoneChatMessage *msg) {
@@ -262,6 +251,33 @@ bool_t linphone_chat_message_is_forward(LinphoneChatMessage *msg) {
 
 const char *linphone_chat_message_get_forward_info (const LinphoneChatMessage *msg) {
 	return L_STRING_TO_C(L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getForwardInfo());
+}
+
+bool_t linphone_chat_message_is_reply (LinphoneChatMessage *msg) {
+	return L_GET_CPP_PTR_FROM_C_OBJECT(msg)->isReply();
+}
+
+const char *linphone_chat_message_get_reply_message_id(LinphoneChatMessage *msg) {
+	return L_STRING_TO_C(L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getReplyToMessageId());
+}
+
+const LinphoneAddress *linphone_chat_message_get_reply_message_sender_address(LinphoneChatMessage *msg) {
+	if (L_GET_CPP_PTR_FROM_C_OBJECT(msg)->isReply()) {
+		const LinphonePrivate::IdentityAddress &address = L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getReplyToSenderAddress();
+		if (address.isValid()) {
+			return L_GET_C_BACK_PTR(&(address.asAddress()));
+		}
+	}
+	return NULL;
+}
+
+LinphoneChatMessage* linphone_chat_message_get_reply_message(LinphoneChatMessage *message) {
+	if (linphone_chat_message_is_reply(message)) {
+		shared_ptr<LinphonePrivate::ChatMessage> cppPtr = L_GET_CPP_PTR_FROM_C_OBJECT(message)->getReplyToMessage();
+		if (!cppPtr) return NULL;
+		return linphone_chat_message_ref(L_GET_C_BACK_PTR(cppPtr));
+	}
+	return NULL;
 }
 
 bool_t linphone_chat_message_is_ephemeral (const LinphoneChatMessage *msg) {
@@ -498,10 +514,8 @@ const LinphoneAddress *linphone_chat_message_get_peer_address (const LinphoneCha
 }
 
 const LinphoneAddress *linphone_chat_message_get_local_address (const LinphoneChatMessage *msg) {
-	if (msg->cache.local)
-		linphone_address_unref(msg->cache.local);
-	msg->cache.local = linphone_address_new(L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getLocalAdress().asString().c_str());
-	return msg->cache.local;
+	const LinphonePrivate::Address & addr = L_GET_CPP_PTR_FROM_C_OBJECT(msg)->getLocalAdress().asAddress();
+	return L_GET_C_BACK_PTR(&addr);
 }
 
 LinphoneReason linphone_chat_message_get_reason (const LinphoneChatMessage *msg) {

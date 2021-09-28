@@ -1,6 +1,6 @@
 ############################################################################
 # CMakeLists.txt
-# Copyright (C) 2016  Belledonne Communications, Grenoble France
+# Copyright (C) 2010-2021 Belledonne Communications, Grenoble France
 #
 ############################################################################
 #
@@ -113,12 +113,17 @@ set(DAEMON_SOURCE_FILES
 set(DAEMON_PIPETEST_SOURCE_FILES
 	daemon-pipetest.c
 )
+set(DAEMON_SOURCE_FILES_OBJC )
+if(APPLE)
+	list(APPEND DAEMON_SOURCE_FILES_OBJC ../src/utils/main-loop-integration-macos.m)
+endif()
 
 bc_apply_compile_flags(DAEMON_SOURCE_FILES STRICT_OPTIONS_CPP STRICT_OPTIONS_CXX)
 bc_apply_compile_flags(DAEMON_PIPETEST_SOURCE_FILES STRICT_OPTIONS_CPP STRICT_OPTIONS_C)
-add_executable(linphone-daemon ${DAEMON_SOURCE_FILES})
+bc_apply_compile_flags(DAEMON_SOURCE_FILES_OBJC STRICT_OPTIONS_CPP STRICT_OPTIONS_OBJC)
+add_executable(linphone-daemon ${DAEMON_SOURCE_FILES} ${DAEMON_SOURCE_FILES_OBJC})
 target_include_directories(linphone-daemon PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${LINPHONE_INCLUDE_DIRS})
-target_link_libraries(linphone-daemon ${LINPHONE_LIBS_FOR_TOOLS} mediastreamer ortp bctoolbox ${XSD_LIBRARIES})
+target_link_libraries(linphone-daemon ${LINPHONE_LIBS_FOR_TOOLS} mediastreamer ortp bctoolbox bellesip ${XSD_LIBRARIES})
 set_target_properties(linphone-daemon PROPERTIES LINK_FLAGS "${LINPHONE_LDFLAGS}")
 set_target_properties(linphone-daemon PROPERTIES LINKER_LANGUAGE CXX)
 

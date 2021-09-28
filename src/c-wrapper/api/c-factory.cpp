@@ -186,11 +186,14 @@ LinphoneConferenceCbs * linphone_factory_create_conference_cbs(const LinphoneFac
 
 LinphoneChatRoomCbs * linphone_factory_create_chat_room_cbs(const LinphoneFactory *factory) {
   return Factory::toCpp(factory)->createChatRoomCbs();
-
 }
 
 LinphoneChatMessageCbs * linphone_factory_create_chat_message_cbs(const LinphoneFactory *factory) {
   return Factory::toCpp(factory)->createChatMessageCbs();
+}
+
+LinphoneMagicSearchCbs * linphone_factory_create_magic_search_cbs(const LinphoneFactory *factory){
+     return Factory::toCpp(factory)->createMagicSearchCbs();
 }
 
 LinphoneVcard *linphone_factory_create_vcard(LinphoneFactory *factory) {
@@ -206,7 +209,6 @@ LinphoneVideoDefinition * linphone_factory_create_video_definition_from_name(con
   return Factory::toCpp(factory)->createVideoDefinitionFromName(
     name ? name : ""
   );
-
 }
 
 const bctbx_list_t * linphone_factory_get_supported_video_definitions(const LinphoneFactory *factory) {
@@ -215,7 +217,6 @@ const bctbx_list_t * linphone_factory_get_supported_video_definitions(const Linp
 
 LinphoneVideoDefinition * linphone_factory_find_supported_video_definition(const LinphoneFactory *factory, unsigned int width, unsigned int height) {
   return Factory::toCpp(factory)->findSupportedVideoDefinition(width, height);
-
 }
 
 LinphoneVideoDefinition * linphone_factory_find_supported_video_definition_by_name(const LinphoneFactory *factory, const char *name) {
@@ -367,6 +368,10 @@ LinphoneTunnelConfig *linphone_factory_create_tunnel_config(LinphoneFactory *fac
   return Factory::toCpp(factory)->createTunnelConfig();
 }
 
+LinphoneAccountCbs * linphone_factory_create_account_cbs(LinphoneFactory *factory) {
+  return Factory::toCpp(factory)->createAccountCbs();
+}
+
 LinphoneLoggingServiceCbs *linphone_factory_create_logging_service_cbs(LinphoneFactory *factory) {
   return Factory::toCpp(factory)->createLoggingServiceCbs();
 }
@@ -421,4 +426,8 @@ void linphone_factory_set_vfs_encryption(LinphoneFactory *factory, const uint16_
     secret,
     secretSize
   );
+}
+
+LinphoneDigestAuthenticationPolicy *linphone_factory_create_digest_authentication_policy(const LinphoneFactory *factory){
+	return Factory::toCpp(factory)->createDigestAuthenticationPolicy();
 }

@@ -81,7 +81,15 @@ public class CoreManager {
     private BluetoothHelper mBluetoothHelper;
     private ShutdownReceiver mShutdownReceiver;
 
+	// These methods will make sure the real core.<method> will be called on the same thread as the core.iterate()
     private native void updatePushNotificationInformation(long ptr, String appId, String token);
+	private native void stopCore(long ptr);
+	private native void leaveConference(long ptr);
+	private native void pauseAllCalls(long ptr);
+	private native void reloadSoundDevices(long ptr);
+	private native void enterBackground(long ptr);
+	private native void enterForeground(long ptr);
+	private native void ensureRegistered(long ptr);
 
     public CoreManager(Object context, Core core) {
         mContext = ((Context) context).getApplicationContext();
@@ -142,9 +150,13 @@ public class CoreManager {
             mContext.unregisterReceiver(mShutdownReceiver);
             mShutdownReceiver = null;
         }
+        
+        if (mAudioHelper != null) {
+            mAudioHelper.destroy(mContext);
+            mAudioHelper = null;
+        }
 
         mServiceClass = null;
-        mAudioHelper = null;
         mContext = null;
         sInstance = null;
     }
@@ -153,29 +165,13 @@ public class CoreManager {
         return mCore;
     }
 
+	public void ensureRegistered() {
+		ensureRegistered(mCore.getNativePointer());
+	}
+
     public void onLinphoneCoreStart() {
         if (mCore.isAutoIterateEnabled()) {
-            mIterateRunnable =
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            if (mCore != null) {
-                                mCore.iterate();
-                            }
-                        }
-                    };
-            TimerTask lTask =
-                    new TimerTask() {
-                        @Override
-                        public void run() {
-                            AndroidDispatcher.dispatchOnUIThread(mIterateRunnable);
-                        }
-                    };
-
-            /*use schedule instead of scheduleAtFixedRate to avoid iterate from being call in burst after cpu wake up*/
-            mTimer = new Timer("Linphone Core iterate scheduler");
-            mTimer.schedule(lTask, 0, 20);
-            Log.i("[Core Manager] Call to core.iterate() scheduled every 20ms");
+            startAutoIterate();
         } else {
             Log.w("[Core Manager] Auto core.iterate() isn't enabled, ensure you do it in your application!");
         }
@@ -212,6 +208,16 @@ public class CoreManager {
             @Override
             public void onCallStateChanged(Core core, Call call, Call.State state, String message) {
                 if (mAudioHelper == null) return;
+                if (call.getState() != state) {
+                    // This can happen if a listener set earlier than this one in the app automatically accepts an incoming call for example.
+                    if (state == Call.State.IncomingReceived && call.getState() == Call.State.IncomingEarlyMedia) {
+                        Log.w("[Core Manager] It seems call was accepted with early-media during the incoming received call state changed, continuing anyway");
+                    } else {
+                        Log.w("[Core Manager] Call state changed callback state variable doesn't match current call state, skipping");
+                        return;
+                    }
+                }
+
                 if (state == Call.State.IncomingReceived && core.getCallsNb() == 1) {
                     if (core.isNativeRingingEnabled()) {
                         Log.i("[Core Manager] Incoming call received, no other call, start ringing");
@@ -247,6 +253,9 @@ public class CoreManager {
                 } else if (state == Call.State.StreamsRunning) {
                     Log.i("[Core Manager] Call active, ensure audio focus granted");
                     mAudioHelper.requestCallAudioFocus();
+                } else if (state == Call.State.Resuming) {
+                    Log.i("[Core Manager] Call resuming, ensure audio focus granted");
+                    mAudioHelper.requestCallAudioFocus();
                 }
             }
         };
@@ -258,7 +267,7 @@ public class CoreManager {
 
     public void stop() {
         Log.i("[Core Manager] Stopping");
-        mCore.stop();
+        stopCore(mCore.getNativePointer());
     }
 
     public void onLinphoneCoreStop() {
@@ -281,6 +290,38 @@ public class CoreManager {
         sInstance = null;
     }
 
+    public void startAutoIterate() {
+        mIterateRunnable =
+            new Runnable() {
+                @Override
+                public void run() {
+                    if (mCore != null) {
+                        mCore.iterate();
+                    }
+                }
+            };
+        TimerTask lTask =
+            new TimerTask() {
+                @Override
+                public void run() {
+                    AndroidDispatcher.dispatchOnUIThread(mIterateRunnable);
+                }
+            };
+
+        /*use schedule instead of scheduleAtFixedRate to avoid iterate from being call in burst after cpu wake up*/
+        mTimer = new Timer("Linphone Core iterate scheduler");
+        mTimer.schedule(lTask, 0, 20);
+        Log.i("[Core Manager] Call to core.iterate() scheduled every 20ms");
+    }
+
+    public void stopAutoIterate() {
+        if (mTimer != null) {
+            Log.w("[Core Manager] Stopping scheduling of core.iterate() every 20ms");
+            mTimer.cancel();
+            mTimer = null;
+        }
+    }
+
     public void startAudioForEchoTestOrCalibration() {
         if (mAudioHelper == null) return;
         mAudioHelper.startAudioForEchoTestOrCalibration();
@@ -297,11 +338,12 @@ public class CoreManager {
             if (pauseCallsWhenAudioFocusIsLost) {
                 if (mCore.isInConference()) {
                     Log.i("[Core Manager] App has lost audio focus, leaving conference");
-                    mCore.leaveConference();
+                    leaveConference(mCore.getNativePointer());
                 } else {
                     Log.i("[Core Manager] App has lost audio focus, pausing all calls");
-                    mCore.pauseAllCalls();
+                    pauseAllCalls(mCore.getNativePointer());
                 }
+                mAudioHelper.releaseCallAudioFocus();
             } else {
                 Log.w("[Core Manager] Audio focus lost but keeping calls running");
             }
@@ -309,50 +351,54 @@ public class CoreManager {
     }
 
     public void onBluetoothHeadsetStateChanged() {
-		GlobalState globalState = mCore.getGlobalState();
-		if (globalState == GlobalState.On || globalState == GlobalState.Ready) {
-			Log.i("[Core Manager] Bluetooth headset state changed, reload sound devices in 500ms");
-			final Handler handler = new Handler(Looper.getMainLooper());
-			handler.postDelayed(new Runnable() {
-				@Override
-				public void run() {
-					Log.i("[Core Manager] Reloading sound devices");
-					mCore.reloadSoundDevices();
-				}
-			}, 500);			
-		} else {
-			Log.i("[Core Manager] Bluetooth headset state changed but current Core global state is ", globalState, ", skipping...");
-		}
+        GlobalState globalState = mCore.getGlobalState();
+        if (globalState == GlobalState.On || globalState == GlobalState.Ready) {
+            Log.i("[Core Manager] Bluetooth headset state changed, waiting for 500ms before reloading sound devices");
+            final Handler handler = new Handler(Looper.getMainLooper());
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    Log.i("[Core Manager] Reloading sound devices");
+                    if (mCore != null) {
+                        reloadSoundDevices(mCore.getNativePointer());
+                    }
+                }
+            }, 500);
+        } else {
+            Log.w("[Core Manager] Bluetooth headset state changed but current global state is ", globalState.name(), ", skipping...");
+        }
     }
 
     public void onHeadsetStateChanged() {
-		GlobalState globalState = mCore.getGlobalState();
-		if (globalState == GlobalState.On || globalState == GlobalState.Ready) {
-			Log.i("[Core Manager] Headset state changed, reload sound devices in 500ms");
-			final Handler handler = new Handler(Looper.getMainLooper());
-			handler.postDelayed(new Runnable() {
-				@Override
-				public void run() {
-					Log.i("[Core Manager] Reloading sound devices");
-					mCore.reloadSoundDevices();
-				}
-			}, 500);
-		} else {
-			Log.i("[Core Manager] Headset state changed but current Core global state is ", globalState, ", skipping...");
-		}
+        GlobalState globalState = mCore.getGlobalState();
+        if (globalState == GlobalState.On || globalState == GlobalState.Ready) {
+            Log.i("[Core Manager] Headset state changed, waiting for 500ms before reloading sound devices");
+            final Handler handler = new Handler(Looper.getMainLooper());
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    Log.i("[Core Manager] Reloading sound devices");
+                    if (mCore != null) {
+                        reloadSoundDevices(mCore.getNativePointer());
+                    }
+                }
+            }, 500);
+        } else {
+            Log.w("[Core Manager] Headset state changed but current global state is ", globalState.name(), ", skipping...");
+        }
     }
 
     public void onBackgroundMode() {
         Log.i("[Core Manager] App has entered background mode");
         if (mCore != null) {
-            mCore.enterBackground();
+            enterBackground(mCore.getNativePointer());
         }
     }
 
     public void onForegroundMode() {
         Log.i("[Core Manager] App has left background mode");
         if (mCore != null) {
-            mCore.enterForeground();
+            enterForeground(mCore.getNativePointer());
         }
     }
 
@@ -360,7 +406,9 @@ public class CoreManager {
         int resId = mContext.getResources().getIdentifier("gcm_defaultSenderId", "string", mContext.getPackageName());
         String appId = mContext.getString(resId);
         Log.i("[Core Manager] Push notification app id is [", appId, "] and token is [", token, "]");
-        updatePushNotificationInformation(mCore.getNativePointer(), appId, token);
+        if (mCore != null) {
+            updatePushNotificationInformation(mCore.getNativePointer(), appId, token);
+        }
     }
 
     private Class getServiceClass() {

@@ -392,6 +392,7 @@ class CsharpTranslator:
 		interfaceDict['get_user_data_name'] = interface.listenedClass.name.to_snake_case(fullName=True) + '_cbs_get_user_data'
 		interfaceDict['briefDoc'] = interface.briefDescription.translate(self.docTranslator, tagAsBrief=True)
 		interfaceDict['detailedDoc'] = interface.detailedDescription.translate(self.docTranslator)
+		interfaceDict['interfaceCName'] = interface.listenedClass.name.to_snake_case(fullName=False)
 
 		interfaceDict['methods'] = []
 		for method in interface.instanceMethods:
@@ -479,10 +480,11 @@ if __name__ == '__main__':
 		'linphone_push_notification_message_get_local_addr',
 		'linphone_push_notification_message_get_peer_addr',
 		'linphone_core_get_new_message_from_callid',
-		'linphone_core_get_new_chat_room_from_conf_addr'
+		'linphone_core_get_new_chat_room_from_conf_addr',
+		'linphone_core_set_native_preview_window_id',
+		'linphone_core_set_native_video_window_id'
 	]
 	parser.classBl += 'LinphoneCoreVTable'
-	parser.methodBl.remove('getCurrentCallbacks')
 	parser.enum_relocations = {} # No nested enums in C#, will cause ambiguousness between Call.State (the enum) and call.State (the property)
 	parser.parse_all()
 	translator = CsharpTranslator()

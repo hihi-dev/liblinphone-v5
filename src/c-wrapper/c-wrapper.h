@@ -21,6 +21,168 @@
 #define _L_C_WRAPPER_H_
 
 #include "linphone/api/c-types.h"
+#include "logger/logger.h"
+
+/*
+ * This include file provides routines for C to C++ mapping of objects within the library.
+ * The liblinphone primary interface is C, so that it can be wrapped in the most large set of "modern" languages.
+ * However, internally liblinphone heavily uses C++.
+ * It is convenient that C types exposed in the C API have a mapping mechanism with their C++ implementation.
+ * The HybridObject templates is the choosen solution. See examples (LinphoneCall, LinphoneAuthInfo, LinphoneConference...).
+ * 
+ * Formely, a more complex mapping mechanism was in use in liblinphone, based on C macros and a Public/Private pattern.
+ * It is provided by file "internal/c-tools.h", included below.
+ * This model is now obsolete and replaced by HybridObject<>. It shall not be used anymore in newly written code.
+ */
+
+
+// Convertions integer to pointer and viceversa, useful to store integers into bctbx_list_t.
+#define LINPHONE_INT_TO_PTR(x)  ((void*)(intptr_t)(x))
+#define LINPHONE_PTR_TO_INT(x)  ((int)(intptr_t)(x))
+
+#include "belle-sip/object++.hh"
+
+/* 
+ * Macros to invoke callbacks owned by an HybridObject derived type.
+ */
+
+#define LINPHONE_HYBRID_OBJECT_INVOKE_CBS_WITH_C(cppType, cppObject, cbGetter, ...) \
+	do{ \
+		bctbx_list_t *callbacksCopy = bctbx_list_copy_with_data(cppObject->getCallbacksList(), (bctbx_list_copy_func)belle_sip_object_ref); \
+		for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) { \
+			Linphone ## cppType ## Cbs *cbs = static_cast< Linphone ## cppType ## Cbs *>(bctbx_list_get_data(it)); \
+			cppObject->setCurrentCallbacks(cbs); \
+			auto cb = cbGetter (cbs); \
+			if (cb) \
+				cb(cppObject->toC(), __VA_ARGS__); \
+		} \
+		cppObject->setCurrentCallbacks(nullptr); \
+		bctbx_list_free_with_data(callbacksCopy, (bctbx_list_free_func)belle_sip_object_unref);\
+	}while(0)
+
+#define LINPHONE_HYBRID_OBJECT_INVOKE_CBS_WITH_C_NO_ARG(cppType, cppObject, cbGetter)\
+	do{ \
+		bctbx_list_t *callbacksCopy = bctbx_list_copy_with_data(cppObject->getCallbacksList(), (bctbx_list_copy_func)belle_sip_object_ref); \
+		for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) { \
+			Linphone ## cppType ## Cbs *cbs = static_cast< Linphone ## cppType ## Cbs *>(bctbx_list_get_data(it)); \
+			cppObject->setCurrentCallbacks(cbs); \
+			auto cb = cbGetter (cbs); \
+			if (cb) \
+				cb(cppObject->toC()); \
+		} \
+		cppObject->setCurrentCallbacks(nullptr); \
+		bctbx_list_free_with_data(callbacksCopy, (bctbx_list_free_func)belle_sip_object_unref);\
+	}while(0)
+
+#define LINPHONE_HYBRID_OBJECT_INVOKE_CBS(cppType, cppObject, cbGetter, ...) \
+	do{ \
+		std::list< std::shared_ptr< cppType ## Cbs > > callbacksCopy = cppObject->getCallbacksList(); \
+		for (auto & cbs : callbacksCopy) { \
+			if (cbs->isActive()){ \
+				cppObject->setCurrentCallbacks(cbs); \
+				auto cb = cbGetter (cbs->toC()); \
+				if (cb) \
+					cb(cppObject->toC(), __VA_ARGS__); \
+			}\
+		} \
+		cppObject->setCurrentCallbacks(nullptr); \
+	}while(0)
+
+#define LINPHONE_HYBRID_OBJECT_INVOKE_CBS_NO_ARG(cppType, cppObject, cbGetter) \
+	do{ \
+		std::list< std::shared_ptr< cppType ## Cbs > > callbacksCopy = cppObject->getCallbacksList(); \
+		for (auto & cbs : callbacksCopy) { \
+			if (cbs->isActive()){ \
+				cppObject->setCurrentCallbacks(cbs); \
+				auto cb = cbGetter (cbs->toC()); \
+				if (cb) \
+					cb(cppObject->toC()); \
+			}\
+		} \
+		cppObject->setCurrentCallbacks(nullptr); \
+	}while(0)
+
+LINPHONE_BEGIN_NAMESPACE
+
+/* Trivial class for providing setUserData()/getUserData() to hybrid objects used in liblinphone.*/
+class UserDataAccessor{
+public:
+	void *getUserData()const;
+	void setUserData(void *ud);
+private:
+	void *mUserData = nullptr;
+};
+
+/*
+ * Base class for all '*Cbs' classes.
+ */
+class Callbacks : public UserDataAccessor{
+	public:
+		inline void setActive(bool active){
+			mIsActive = active;
+		}
+		inline bool isActive()const{
+			return mIsActive;
+		}
+	private:
+		bool mIsActive = true;
+};
+
+/*
+ * Template class for classes that hold callbacks (such as LinphoneCallCbs, LinphoneAccountCbs etc.
+ * The invocation of callbacks can be done with the LINPHONE_HYBRID_OBJECT_INVOKE_CBS() macro.
+ */
+template <typename _CppCbsType>
+class CallbacksHolder{
+	public:
+		~CallbacksHolder(){
+			if (mCCallbacksList) bctbx_list_free(mCCallbacksList);
+		}
+		void addCallbacks (const std::shared_ptr<_CppCbsType> &callbacks){
+			if (find(mCallbacksList.begin(), mCallbacksList.end(), callbacks) == mCallbacksList.end()){
+				mCallbacksList.push_back(callbacks);
+				callbacks->setActive(true);
+			}else{
+				lError() << "Rejected Callbacks " << typeid(_CppCbsType).name() << " [" << (void*) callbacks.get() << "] added twice.";
+			}
+		}
+		void removeCallbacks (const std::shared_ptr<_CppCbsType> &callbacks){
+			auto it = find(mCallbacksList.begin(), mCallbacksList.end(), callbacks);
+			if (it != mCallbacksList.end()){
+				mCallbacksList.erase(it);
+				callbacks->setActive(false);
+			}else{
+				lError() << "Attempt to remove " << typeid(_CppCbsType).name() << " [" << (void*) callbacks.get() << "] that does not exist.";
+			}
+		}
+		void setCurrentCallbacks (const std::shared_ptr<_CppCbsType> &callbacks){
+			mCurrentCallbacks = callbacks;
+		}
+		std::shared_ptr<_CppCbsType> getCurrentCallbacks () const{
+			return mCurrentCallbacks;
+		}
+		const std::list<std::shared_ptr<_CppCbsType>> & getCallbacksList () const{
+			return mCallbacksList;
+		}
+		const bctbx_list_t * getCCallbacksList() const{
+			if (mCCallbacksList){
+				bctbx_list_free(mCCallbacksList);
+				mCCallbacksList = nullptr;
+			}
+			for (auto & cbs : mCallbacksList){
+				/* no need to take a ref, mCallbacksList already has one. */
+				mCCallbacksList = bctbx_list_append(mCCallbacksList, cbs->toC());
+			}
+			return mCCallbacksList;
+		}
+	private:
+		std::list< std::shared_ptr<_CppCbsType> > mCallbacksList;
+		std::shared_ptr<_CppCbsType> mCurrentCallbacks;
+		mutable bctbx_list_t *mCCallbacksList = nullptr;
+};
+
+
+LINPHONE_END_NAMESPACE
 
 #include "internal/c-tools.h"
 
@@ -67,23 +229,20 @@
 
 #define L_REGISTER_ID(CPP_TYPE, C_TYPE) BELLE_SIP_TYPE_ID(Linphone ## C_TYPE),
 
+/* Only pure belle_sip_object_t defined in C shall be declared here.
+ * HybridObject<> derived don't need to be declared here */
 BELLE_SIP_DECLARE_TYPES_BEGIN(linphone, 10000)
 L_REGISTER_TYPES(L_REGISTER_ID)
 BELLE_SIP_TYPE_ID(LinphoneAccountCreator),
 BELLE_SIP_TYPE_ID(LinphoneAccountCreatorCbs),
 BELLE_SIP_TYPE_ID(LinphoneAccountCreatorService),
-BELLE_SIP_TYPE_ID(LinphoneAudioDevice),
-BELLE_SIP_TYPE_ID(LinphoneAuthInfo),
 BELLE_SIP_TYPE_ID(LinphoneBuffer),
-BELLE_SIP_TYPE_ID(LinphoneCall),
 BELLE_SIP_TYPE_ID(LinphoneCallCbs),
 BELLE_SIP_TYPE_ID(LinphoneCallLog),
 BELLE_SIP_TYPE_ID(LinphoneCallStats),
 BELLE_SIP_TYPE_ID(LinphoneChatMessageCbs),
 BELLE_SIP_TYPE_ID(LinphoneChatRoomCbs),
-BELLE_SIP_TYPE_ID(LinphoneConference),
 BELLE_SIP_TYPE_ID(LinphoneConferenceCbs),
-BELLE_SIP_TYPE_ID(LinphoneConferenceParams),
 BELLE_SIP_TYPE_ID(LinphoneConfig),
 BELLE_SIP_TYPE_ID(LinphoneContactProvider),
 BELLE_SIP_TYPE_ID(LinphoneContactSearch),
@@ -103,6 +262,7 @@ BELLE_SIP_TYPE_ID(LinphoneLDAPContactProvider),
 BELLE_SIP_TYPE_ID(LinphoneLDAPContactSearch),
 BELLE_SIP_TYPE_ID(LinphoneLoggingService),
 BELLE_SIP_TYPE_ID(LinphoneLoggingServiceCbs),
+BELLE_SIP_TYPE_ID(LinphoneMagicSearchCbs),
 BELLE_SIP_TYPE_ID(LinphoneNatPolicy),
 BELLE_SIP_TYPE_ID(LinphoneParticipant),
 BELLE_SIP_TYPE_ID(LinphoneParticipantDevice),
@@ -116,6 +276,7 @@ BELLE_SIP_TYPE_ID(LinphonePresencePerson),
 BELLE_SIP_TYPE_ID(LinphonePresenceService),
 BELLE_SIP_TYPE_ID(LinphoneProxyConfig),
 BELLE_SIP_TYPE_ID(LinphonePushNotificationMessage),
+BELLE_SIP_TYPE_ID(LinphonePushNotificationConfig),
 BELLE_SIP_TYPE_ID(LinphoneRange),
 BELLE_SIP_TYPE_ID(LinphoneTransports),
 BELLE_SIP_TYPE_ID(LinphoneTunnel),

@@ -39,6 +39,18 @@
 	#define L_INTERNAL_WRAPPER_CONSTEXPR constexpr
 #endif
 
+#ifndef LINPHONE_PUBLIC
+#if defined(_MSC_VER)
+#ifdef LINPHONE_EXPORTS
+#define LINPHONE_PUBLIC	__declspec(dllexport)
+#else
+#define LINPHONE_PUBLIC	__declspec(dllimport)
+#endif
+#else
+#define LINPHONE_PUBLIC
+#endif
+#endif
+
 LINPHONE_BEGIN_NAMESPACE
 
 // -----------------------------------------------------------------------------
@@ -123,8 +135,8 @@ private:
 	// ---------------------------------------------------------------------------
 
 	enum class WrappedObjectOwner : int {
-		External,
-		Internal
+		External = 0,
+		Internal = 1
 	};
 
 	template<typename CppType>
@@ -883,5 +895,8 @@ LINPHONE_END_NAMESPACE
 	LinphonePrivate::Wrapper::getResolvedCListFromCppList(CPP_LIST)
 #define L_GET_RESOLVED_CPP_LIST_FROM_C_LIST(C_LIST, C_TYPE) \
 	LinphonePrivate::Wrapper::getResolvedCppListFromCList<Linphone ## C_TYPE>(C_LIST)
+
+
+
 
 #endif // ifndef _L_C_TOOLS_H_

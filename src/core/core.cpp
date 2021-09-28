@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <iterator>
 
+#include "bctoolbox/utils.hh"
 #include <mediastreamer2/mscommon.h>
 
 #ifdef HAVE_ADVANCED_IM
@@ -56,7 +57,10 @@
 
 #include "conference/session/media-session.h"
 #include "conference/session/streams.h"
+#include "conference/participant.h"
 #include "conference_private.h"
+
+#include "sal/sal_media_description.h"
 
 // TODO: Remove me later.
 #include "c-wrapper/c-wrapper.h"
@@ -171,6 +175,7 @@ void Core::onStopAsyncBackgroundTaskStarted() {
 		}
 	};
 	function<void()> enableStopAsyncEnd = [d]() {
+		lWarning() << "Background task [Stop core async end] is now expiring";
 		d->stopAsyncEndEnabled = true;
 	};
 
@@ -403,7 +408,7 @@ belle_sip_main_loop_t *CorePrivate::getMainLoop(){
 }
 
 Sal * CorePrivate::getSal(){
-	return getPublic()->getCCore()->sal;
+	return getPublic()->getCCore()->sal.get();
 }
 
 LinphoneCore *CorePrivate::getCCore() const {
@@ -471,7 +476,7 @@ void CorePrivate::stopEphemeralMessageTimer () {
 
 bool CorePrivate::setInputAudioDevice(AudioDevice *audioDevice) {
 	L_Q();
-	if ((audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Record)) == 0) {
+	if (audioDevice && ( (audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Record)) == 0) ) {
 		lError() << "Audio device [" << audioDevice << "] doesn't have Record capability";
 		return false;
 	}
@@ -495,7 +500,7 @@ bool CorePrivate::setInputAudioDevice(AudioDevice *audioDevice) {
 
 bool CorePrivate::setOutputAudioDevice(AudioDevice *audioDevice) {
 	L_Q();
-	if ((audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Play)) == 0) {
+	if (audioDevice && ( (audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Play)) == 0) ) {
 		lError() << "Audio device [" << audioDevice << "] doesn't have Play capability";
 		return false;
 	}
@@ -754,7 +759,7 @@ void Core::setSpecs (const std::string &pSpecs) {
 		setSpecsList(d->specs);
 	} else {
 		//Assume a list of coma-separated values
-		setSpecsList(Utils::toList(Utils::split(pSpecs, ",")));
+		setSpecsList(Utils::toList(bctoolbox::Utils::split(pSpecs, ",")));
 	}
 }
 
@@ -811,7 +816,9 @@ AudioDevice* Core::findAudioDeviceMatchingMsSoundCard(MSSndCard *soundCard) cons
 
 const list<AudioDevice *> Core::getAudioDevices() const {
 	std::list<AudioDevice *> audioDevices;
-	bool micFound = false, speakerFound = false, earpieceFound = false, bluetoothMicFound = false, bluetoothSpeakerFound = false;
+	bool micFound = false, speakerFound = false, earpieceFound = false;
+	bool bluetoothMicFound = false, bluetoothSpeakerFound = false;
+	bool headsetMicFound = false, headsetSpeakerFound = false;
 
 	for (const auto &audioDevice : getExtendedAudioDevices()) {
 		switch (audioDevice->getType()) {
@@ -845,10 +852,22 @@ const list<AudioDevice *> Core::getAudioDevices() const {
 				if (!bluetoothMicFound) bluetoothMicFound = (audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Record));
 				if (!bluetoothSpeakerFound) bluetoothSpeakerFound = (audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Play));
 				break;
+			case AudioDevice::Type::Headphones:
+			case AudioDevice::Type::Headset:
+				if (!headsetMicFound && (audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Record))) {
+					audioDevices.push_back(audioDevice);
+				} else if (!headsetSpeakerFound && (audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Play))) {
+					audioDevices.push_back(audioDevice);
+				}
+
+				// Do not allow to be set to false
+				// Not setting flags inside if statement in order to handle the case of a headset/headphones device that can record and play sound
+				if (!headsetMicFound) headsetMicFound = (audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Record));
+				if (!headsetSpeakerFound) headsetSpeakerFound = (audioDevice->getCapabilities() & static_cast<int>(AudioDevice::Capabilities::Play));
 			default:
 				break;
 		}
-		if (micFound && speakerFound && earpieceFound && bluetoothMicFound && bluetoothSpeakerFound) break;
+		if (micFound && speakerFound && earpieceFound && bluetoothMicFound && bluetoothSpeakerFound && headsetMicFound && headsetSpeakerFound) break;
 	}
 	return audioDevices;
 }
@@ -965,8 +984,10 @@ void Core::setOutputAudioDeviceBySndCard(MSSndCard *card){
 			d->setOutputAudioDevice(audioDevice);
 			return;
 		}
-	}
-	lError() << "[ " << __func__ << " ] Unable to find suitable output audio device";
+	} else // No cards available : remove the device. This will allow to restart it if a new one is detected.
+		d->setOutputAudioDevice(nullptr);
+	if(card)// Having no device when a card is requested is an error
+		lError() << "[ " << __func__ << " ] Unable to find suitable output audio device";
 }
 
 void Core::setInputAudioDeviceBySndCard(MSSndCard *card){
@@ -992,8 +1013,10 @@ void Core::setInputAudioDeviceBySndCard(MSSndCard *card){
 			d->setInputAudioDevice(audioDevice);
 			return;
 		}
-	}
-	lError() << "[ " << __func__ << " ] Unable to find suitable input audio device";
+	}else// No cards available : remove the device. This will allow to restart it if a new one is detected.
+		d->setInputAudioDevice(nullptr);
+	if (card) // Having no device when a card is requested is an error
+		lError() << "[ " << __func__ << " ] Unable to find suitable input audio device";
 }
 
 
@@ -1151,9 +1174,10 @@ int Core::getUnreadChatMessageCount () const {
 int Core::getUnreadChatMessageCount (const IdentityAddress &localAddress) const {
 	L_D();
 	int count = 0;
+	auto addressToCompare = localAddress.asAddress();
 	for (auto it = d->chatRoomsById.begin(); it != d->chatRoomsById.end(); it++) {
 		const auto &chatRoom = it->second;
-		if (chatRoom->getLocalAddress() == localAddress)
+		if (addressToCompare.weakEqual(chatRoom->getLocalAddress().asAddress()))
 			count += chatRoom->getUnreadChatMessageCount();
 	}
 	return count;
@@ -1168,7 +1192,7 @@ int Core::getUnreadChatMessageCountFromActiveLocals () const {
 		for (auto it = linphone_core_get_proxy_config_list(getCCore()); it != NULL; it = it->next) {
 			LinphoneProxyConfig *cfg = (LinphoneProxyConfig *)it->data;
 			const LinphoneAddress *identityAddr = linphone_proxy_config_get_identity_address(cfg);
-			if (L_GET_CPP_PTR_FROM_C_OBJECT(identityAddr)->weakEqual(chatRoom->getLocalAddress())) {
+			if (L_GET_CPP_PTR_FROM_C_OBJECT(identityAddr)->weakEqual(chatRoom->getLocalAddress().asAddress())) {
 				count += chatRoom->getUnreadChatMessageCount();
 			}
 		}
@@ -1223,6 +1247,15 @@ void Core::doLater(const std::function<void ()> &something){
 	getPrivate()->doLater(something);
 }
 
+void Core::performOnIterateThread(const std::function<void ()> &something){
+	unsigned long currentThreadId = bctbx_thread_self();
+	if (currentThreadId == getCCore()->iterate_thread_id) {
+		something();
+	} else {
+		doLater(something);
+	}
+}
+
 belle_sip_source_t *Core::createTimer(const std::function<bool ()> &something, unsigned int milliseconds, const string &name){
 	return belle_sip_main_loop_create_cpp_timeout_2(getPrivate()->getMainLoop(), something, (unsigned)milliseconds, name.c_str());
 }
@@ -1234,12 +1267,11 @@ void Core::destroyTimer(belle_sip_source_t *timer){
 }
 
 const ConferenceId Core::prepareConfereceIdForSearch(const ConferenceId & conferenceId) const {
-	Address peerAddress = conferenceId.getPeerAddress();
+	Address peerAddress = conferenceId.getPeerAddress().asAddress();
 	peerAddress.removeUriParam("gr");
-	Address localAddress = conferenceId.getLocalAddress();
+	Address localAddress = conferenceId.getLocalAddress().asAddress();
 	localAddress.removeUriParam("gr");
 	ConferenceId prunedConferenceId = ConferenceId(ConferenceAddress(peerAddress), ConferenceAddress(localAddress));
-
 	return prunedConferenceId;
 }
 
@@ -1288,4 +1320,65 @@ void Core::deleteAudioVideoConference(const shared_ptr<const MediaConference::Co
 
 }
 
+shared_ptr<MediaConference::Conference> Core::searchAudioVideoConference(const shared_ptr<ConferenceParams> &params, const IdentityAddress &localAddress, const IdentityAddress &remoteAddress, const std::list<IdentityAddress> &participants) const {
+
+	const auto it = std::find_if (audioVideoConferenceById.begin(), audioVideoConferenceById.end(), [&] (const auto & p) {
+		// p is of type std::pair<ConferenceId, std::shared_ptr<MediaConference::Conference>
+		const auto &audioVideoConference = p.second;
+		const ConferenceId &conferenceId = audioVideoConference->getConferenceId();
+		const IdentityAddress &curLocalAddress = conferenceId.getLocalAddress();
+		if (localAddress.getAddressWithoutGruu() != curLocalAddress.getAddressWithoutGruu())
+			return false;
+		const IdentityAddress &curRemoteAddress = conferenceId.getPeerAddress();
+		if (remoteAddress.isValid() && remoteAddress.getAddressWithoutGruu() != curRemoteAddress.getAddressWithoutGruu())
+			return false;
+
+		// Check parameters only if pointer provided as argument is not null
+		if (params) {
+			const ConferenceParams confParams = audioVideoConference->getCurrentParams();
+			if (!params->getSubject().empty() && (params->getSubject().compare(confParams.getSubject()) != 0))
+				return false;
+			if (params->chatEnabled() != confParams.chatEnabled())
+				return false;
+			if (params->audioEnabled() != confParams.audioEnabled())
+				return false;
+			if (params->videoEnabled() != confParams.videoEnabled())
+				return false;
+			if (params->localParticipantEnabled() != confParams.localParticipantEnabled())
+				return false;
+		}
+
+		// Check participants only if list provided as argument is not empty
+		bool participantListMatch = true;
+		if (participants.empty() == false) {
+			const std::list<std::shared_ptr<Participant>> & confParticipants = audioVideoConference->getParticipants ();
+			participantListMatch = equal(participants.cbegin(), participants.cend(), confParticipants.cbegin(), confParticipants.cend(), [] (const auto & p1, const auto & p2) {
+				return (p2->getAddress().getAddressWithoutGruu() == p1.getAddressWithoutGruu());
+			});
+		}
+		return participantListMatch;
+	});
+
+	shared_ptr<MediaConference::Conference> conference = nullptr;
+	if (it != audioVideoConferenceById.cend()) {
+		conference = it->second;
+	}
+
+	return conference;
+}
+
+bool Core::incompatibleSecurity(const std::shared_ptr<SalMediaDescription> &md) const {
+	LinphoneCore *lc = L_GET_C_BACK_PTR(this);
+	return linphone_core_is_media_encryption_mandatory(lc) && linphone_core_get_media_encryption(lc)==LinphoneMediaEncryptionSRTP && !md->hasSrtp();
+}
+
+const std::list<LinphoneMediaEncryption> Core::getSupportedMediaEncryptions() const {
+	LinphoneCore *lc = L_GET_C_BACK_PTR(this);
+	std::list<LinphoneMediaEncryption> encEnumList;
+	const auto encList = linphone_core_get_supported_media_encryptions(lc);
+	for(const bctbx_list_t * enc = encList;enc!=NULL;enc=enc->next){
+		encEnumList.push_back(static_cast<LinphoneMediaEncryption>(LINPHONE_PTR_TO_INT(bctbx_list_get_data(enc))));
+	}
+	return encEnumList;
+}
 LINPHONE_END_NAMESPACE

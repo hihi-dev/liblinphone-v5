@@ -35,24 +35,25 @@
 
 /**
  * @brief Represents an account configuration to be used by #LinphoneCore.
- * 
- * In addition to the #LinphoneAuthInfo that stores the credentials, 
+ *
+ * In addition to the #LinphoneAuthInfo that stores the credentials,
  * you need to configure a #LinphoneProxyConfig as well to be able to connect to a proxy server.
- * 
- * A minimal proxy config consists of an identity address (sip:username@domain.tld) 
+ *
+ * A minimal proxy config consists of an identity address (sip:username@domain.tld)
  * and the proxy server address, @see linphone_proxy_config_set_server_addr().
- * 
+ *
  * If any, it will be stored inside the default configuration file, so it will survive the destruction
  * of the #LinphoneCore and be available at the next start.
  *
- * The account set with linphone_core_set_default_proxy_config() will be used as default 
+ * The account set with linphone_core_set_default_proxy_config() will be used as default
  * for outgoing calls & chat messages unless specified otherwise.
  * @ingroup proxies
+ * @deprecated 06/04/2020 Use #LinphoneAccount object instead
 **/
 typedef struct _LinphoneProxyConfig LinphoneProxyConfig;
 
 /**
- * @brief The object used to configure an account on a server via XML-RPC, 
+ * @brief The object used to configure an account on a server via XML-RPC,
  * see @link https://wiki.linphone.org/xwiki/wiki/public/view/Lib/Features/Override%20account%20creator%20request/
  * @ingroup account_creator
 **/
@@ -90,15 +91,24 @@ typedef enum _LinphoneAccountCreatorPhoneNumberStatus {
 typedef unsigned int LinphoneAccountCreatorPhoneNumberStatusMask;
 
 /**
+ * @brief Enum describing backend used in the #LinphoneAccountCreator.
+ * @ingroup account_creator
+**/
+typedef enum _LinphoneAccountCreatorBackend {
+	LinphoneAccountCreatorBackendXMLRPC = 0, /**< XMLRPC Backend */
+	LinphoneAccountCreatorBackendFlexiAPI = 1, /**< FlexiAPI Backend */
+} LinphoneAccountCreatorBackend;
+
+/**
  * @brief Enum describing username checking, used by the #LinphoneAccountCreator.
  * @ingroup account_creator
 **/
 typedef enum _LinphoneAccountCreatorUsernameStatus {
-	LinphoneAccountCreatorUsernameStatusOk, /**< Username ok */
-	LinphoneAccountCreatorUsernameStatusTooShort, /**< Username too short */
-	LinphoneAccountCreatorUsernameStatusTooLong,  /**< Username too long */
-	LinphoneAccountCreatorUsernameStatusInvalidCharacters, /**< Contain invalid characters */
-	LinphoneAccountCreatorUsernameStatusInvalid /**< Invalid username */
+	LinphoneAccountCreatorUsernameStatusOk = 0, /**< Username ok */
+	LinphoneAccountCreatorUsernameStatusTooShort = 1, /**< Username too short */
+	LinphoneAccountCreatorUsernameStatusTooLong = 2,  /**< Username too long */
+	LinphoneAccountCreatorUsernameStatusInvalidCharacters = 3, /**< Contain invalid characters */
+	LinphoneAccountCreatorUsernameStatusInvalid = 4 /**< Invalid username */
 } LinphoneAccountCreatorUsernameStatus;
 
 /**
@@ -106,9 +116,9 @@ typedef enum _LinphoneAccountCreatorUsernameStatus {
  * @ingroup account_creator
 **/
 typedef enum _LinphoneAccountCreatorEmailStatus {
-	LinphoneAccountCreatorEmailStatusOk, /**< Email ok */
-	LinphoneAccountCreatorEmailStatusMalformed, /**< Email malformed */
-	LinphoneAccountCreatorEmailStatusInvalidCharacters /**< Contain invalid characters */
+	LinphoneAccountCreatorEmailStatusOk = 0, /**< Email ok */
+	LinphoneAccountCreatorEmailStatusMalformed = 1, /**< Email malformed */
+	LinphoneAccountCreatorEmailStatusInvalidCharacters = 2 /**< Contain invalid characters */
 } LinphoneAccountCreatorEmailStatus;
 
 /**
@@ -116,11 +126,11 @@ typedef enum _LinphoneAccountCreatorEmailStatus {
  * @ingroup account_creator
 **/
 typedef enum _LinphoneAccountCreatorPasswordStatus {
-	LinphoneAccountCreatorPasswordStatusOk, /**< Password ok */
-	LinphoneAccountCreatorPasswordStatusTooShort, /**< Password too short */
-	LinphoneAccountCreatorPasswordStatusTooLong,  /**< Password too long */
-	LinphoneAccountCreatorPasswordStatusInvalidCharacters, /**< Contain invalid characters */
-	LinphoneAccountCreatorPasswordStatusMissingCharacters /**< Missing specific characters */
+	LinphoneAccountCreatorPasswordStatusOk = 0, /**< Password ok */
+	LinphoneAccountCreatorPasswordStatusTooShort = 1, /**< Password too short */
+	LinphoneAccountCreatorPasswordStatusTooLong = 2,  /**< Password too long */
+	LinphoneAccountCreatorPasswordStatusInvalidCharacters = 3, /**< Contain invalid characters */
+	LinphoneAccountCreatorPasswordStatusMissingCharacters = 4 /**< Missing specific characters */
 } LinphoneAccountCreatorPasswordStatus;
 
 /**
@@ -128,7 +138,7 @@ typedef enum _LinphoneAccountCreatorPasswordStatus {
  * @ingroup account_creator
 **/
 typedef enum _LinphoneAccountCreatorLanguageStatus {
-	LinphoneAccountCreatorLanguageStatusOk /**< Language ok */
+	LinphoneAccountCreatorLanguageStatusOk = 0 /**< Language ok */
 } LinphoneAccountCreatorLanguageStatus;
 
 /**
@@ -136,8 +146,8 @@ typedef enum _LinphoneAccountCreatorLanguageStatus {
  * @ingroup account_creator
  **/
 typedef enum _LinphoneAccountCreatorAlgoStatus {
-	LinphoneAccountCreatorAlgoStatusOk, /**< Algorithm ok */
-	LinphoneAccountCreatorAlgoStatusNotSupported /**< Algorithm not supported */
+	LinphoneAccountCreatorAlgoStatusOk = 0, /**< Algorithm ok */
+	LinphoneAccountCreatorAlgoStatusNotSupported = 1 /**< Algorithm not supported */
 } LinphoneAccountCreatorAlgoStatus;
 
 /**
@@ -145,10 +155,10 @@ typedef enum _LinphoneAccountCreatorAlgoStatus {
  * @ingroup account_creator
 **/
 typedef enum _LinphoneAccountCreatorActivationCodeStatus {
-	LinphoneAccountCreatorActivationCodeStatusOk, /**< Activation code ok */
-	LinphoneAccountCreatorActivationCodeStatusTooShort, /**< Activation code too short */
-	LinphoneAccountCreatorActivationCodeStatusTooLong, /**< Activation code too long */
-	LinphoneAccountCreatorActivationCodeStatusInvalidCharacters /**< Contain invalid characters */
+	LinphoneAccountCreatorActivationCodeStatusOk = 0, /**< Activation code ok */
+	LinphoneAccountCreatorActivationCodeStatusTooShort = 1, /**< Activation code too short */
+	LinphoneAccountCreatorActivationCodeStatusTooLong = 2, /**< Activation code too long */
+	LinphoneAccountCreatorActivationCodeStatusInvalidCharacters = 3 /**< Contain invalid characters */
 } LinphoneAccountCreatorActivationCodeStatus;
 
 /**
@@ -156,8 +166,8 @@ typedef enum _LinphoneAccountCreatorActivationCodeStatus {
  * @ingroup account_creator
 **/
 typedef enum _LinphoneAccountCreatorDomainStatus {
-	LinphoneAccountCreatorDomainOk, /**< Domain ok */
-	LinphoneAccountCreatorDomainInvalid /**< Domain invalid */
+	LinphoneAccountCreatorDomainOk = 0, /**< Domain ok */
+	LinphoneAccountCreatorDomainInvalid = 1 /**< Domain invalid */
 } LinphoneAccountCreatorDomainStatus;
 
 /**
@@ -165,8 +175,8 @@ typedef enum _LinphoneAccountCreatorDomainStatus {
  * @ingroup account_creator
 **/
 typedef enum _LinphoneAccountCreatorTransportStatus {
-	LinphoneAccountCreatorTransportOk, /**< Transport ok */
-	LinphoneAccountCreatorTransportUnsupported /**< Transport invalid */
+	LinphoneAccountCreatorTransportOk = 0, /**< Transport ok */
+	LinphoneAccountCreatorTransportUnsupported = 1 /**< Transport invalid */
 } LinphoneAccountCreatorTransportStatus;
 
 /**
@@ -175,38 +185,38 @@ typedef enum _LinphoneAccountCreatorTransportStatus {
 **/
 typedef enum _LinphoneAccountCreatorStatus {
 	/** Request status **/
-	LinphoneAccountCreatorStatusRequestOk, /**< Request passed */
-	LinphoneAccountCreatorStatusRequestFailed, /**< Request failed */
-	LinphoneAccountCreatorStatusMissingArguments, /**< Request failed due to missing argument(s) */
-	LinphoneAccountCreatorStatusMissingCallbacks, /**< Request failed due to missing callback(s) */
+	LinphoneAccountCreatorStatusRequestOk = 0, /**< Request passed */
+	LinphoneAccountCreatorStatusRequestFailed = 1, /**< Request failed */
+	LinphoneAccountCreatorStatusMissingArguments = 2, /**< Request failed due to missing argument(s) */
+	LinphoneAccountCreatorStatusMissingCallbacks = 3, /**< Request failed due to missing callback(s) */
 
 	/** Account status **/
 	/* Creation */
-	LinphoneAccountCreatorStatusAccountCreated, /**< Account created */
-	LinphoneAccountCreatorStatusAccountNotCreated, /**< Account not created */
+	LinphoneAccountCreatorStatusAccountCreated = 4, /**< Account created */
+	LinphoneAccountCreatorStatusAccountNotCreated = 5, /**< Account not created */
 	/* Existence */
-	LinphoneAccountCreatorStatusAccountExist, /**< Account exist */
-	LinphoneAccountCreatorStatusAccountExistWithAlias, /**< Account exist with alias */
-	LinphoneAccountCreatorStatusAccountNotExist, /**< Account not exist */
-	LinphoneAccountCreatorStatusAliasIsAccount, /**< Account was created with Alias */
-	LinphoneAccountCreatorStatusAliasExist, /**< Alias exist */
-	LinphoneAccountCreatorStatusAliasNotExist, /**< Alias not exist */
+	LinphoneAccountCreatorStatusAccountExist = 6, /**< Account exist */
+	LinphoneAccountCreatorStatusAccountExistWithAlias = 7, /**< Account exist with alias */
+	LinphoneAccountCreatorStatusAccountNotExist = 8, /**< Account not exist */
+	LinphoneAccountCreatorStatusAliasIsAccount = 9, /**< Account was created with Alias */
+	LinphoneAccountCreatorStatusAliasExist = 10, /**< Alias exist */
+	LinphoneAccountCreatorStatusAliasNotExist = 11, /**< Alias not exist */
 	/* Activation */
-	LinphoneAccountCreatorStatusAccountActivated, /**< Account activated */
-	LinphoneAccountCreatorStatusAccountAlreadyActivated, /**< Account already activated */
-	LinphoneAccountCreatorStatusAccountNotActivated, /**< Account not activated */
+	LinphoneAccountCreatorStatusAccountActivated = 12, /**< Account activated */
+	LinphoneAccountCreatorStatusAccountAlreadyActivated = 13, /**< Account already activated */
+	LinphoneAccountCreatorStatusAccountNotActivated = 14, /**< Account not activated */
 	/* Linking */
-	LinphoneAccountCreatorStatusAccountLinked, /**< Account linked */
-	LinphoneAccountCreatorStatusAccountNotLinked, /**< Account not linked */
+	LinphoneAccountCreatorStatusAccountLinked = 15, /**< Account linked */
+	LinphoneAccountCreatorStatusAccountNotLinked = 16, /**< Account not linked */
 
 	/** Server **/
-	LinphoneAccountCreatorStatusServerError, /**< Error server */
+	LinphoneAccountCreatorStatusServerError = 17, /**< Error server */
 
-	LinphoneAccountCreatorStatusPhoneNumberInvalid, /**< Error cannot send SMS */
-	LinphoneAccountCreatorStatusWrongActivationCode, /**< Error key doesn't match */
-	LinphoneAccountCreatorStatusPhoneNumberOverused, /**< Error too many SMS sent */
-	LinphoneAccountCreatorStatusAlgoNotSupported, /**< Error algo isn't MD5 or SHA-256 */
-	LinphoneAccountCreatorStatusUnexpectedError, /**< Generic error */
+	LinphoneAccountCreatorStatusPhoneNumberInvalid = 18, /**< Error cannot send SMS */
+	LinphoneAccountCreatorStatusWrongActivationCode = 19, /**< Error key doesn't match */
+	LinphoneAccountCreatorStatusPhoneNumberOverused = 20, /**< Error too many SMS sent */
+	LinphoneAccountCreatorStatusAlgoNotSupported = 21, /**< Error algo isn't MD5 or SHA-256 */
+	LinphoneAccountCreatorStatusUnexpectedError = 22, /**< Generic error */
 } LinphoneAccountCreatorStatus;
 
 // -----------------------------------------------------------------------------
@@ -218,14 +228,14 @@ typedef enum _LinphoneAccountCreatorStatus {
  * @ingroup call_logs
 **/
 typedef enum _LinphoneCallDir {
-	LinphoneCallOutgoing, /**< outgoing calls*/
-	LinphoneCallIncoming  /**< incoming calls*/
+	LinphoneCallOutgoing = 0, /**< outgoing calls*/
+	LinphoneCallIncoming = 1  /**< incoming calls*/
 } LinphoneCallDir;
 
 /**
  * @brief This object carry various statistic informations regarding the quality of an audio or video stream for a given #LinphoneCall.
  *
- * To receive these informations periodically and as soon as they are computed, 
+ * To receive these informations periodically and as soon as they are computed,
  * implement the call_stats_updated() callback inside a #LinphoneCoreCbs.
  *
  * At any time, the application can access latest computed statistics using linphone_call_get_audio_stats() and linphone_call_get_video_stats().
@@ -234,17 +244,26 @@ typedef enum _LinphoneCallDir {
 typedef struct _LinphoneCallStats LinphoneCallStats;
 
 /**
+ * @ingroup call_misc
+ */
+typedef enum _LinphoneSupportLevel {
+	LinphoneSupportLevelNoSupport = 0, /**< No support for the feature */
+	LinphoneSupportLevelOptional = 1, /**< Optional support for the feature */
+	LinphoneSupportLevelMandatory = 2, /**< Mandatory support for the feature */
+} LinphoneSupportLevel;
+
+/**
  * @brief Enum representing the status of a call.
  * @ingroup call_logs
 **/
 typedef enum _LinphoneCallStatus {
-	LinphoneCallSuccess, /**< The call was sucessful */
-	LinphoneCallAborted, /**< The call was aborted (caller hanged up) */
-	LinphoneCallMissed, /**< The call was missed (incoming call timed out without being answered or hanged up) */
-	LinphoneCallDeclined, /**< The call was declined, either locally or by remote end */
-	LinphoneCallEarlyAborted, /**<The call was aborted before being advertised to the application - for protocol reasons*/
-	LinphoneCallAcceptedElsewhere, /**<The call was answered on another device*/
-	LinphoneCallDeclinedElsewhere /**<The call was declined on another device*/
+	LinphoneCallSuccess = 0, /**< The call was sucessful */
+	LinphoneCallAborted = 1, /**< The call was aborted (caller hanged up) */
+	LinphoneCallMissed = 2, /**< The call was missed (incoming call timed out without being answered or hanged up) */
+	LinphoneCallDeclined = 3, /**< The call was declined, either locally or by remote end */
+	LinphoneCallEarlyAborted = 4, /**<The call was aborted before being advertised to the application - for protocol reasons*/
+	LinphoneCallAcceptedElsewhere = 5, /**<The call was answered on another device*/
+	LinphoneCallDeclinedElsewhere = 6 /**<The call was declined on another device*/
 } LinphoneCallStatus;
 
 // -----------------------------------------------------------------------------
@@ -253,13 +272,13 @@ typedef enum _LinphoneCallStatus {
 
 /**
  * @brief This object is used to store a SIP address.
- * 
+ *
  * #LinphoneFriend is mainly used to implement an adressbook feature, and are used as data for the #LinphoneMagicSearch object.
  * If your proxy supports it, you can also use it to subscribe to presence information.
- * 
+ *
  * The objects are stored in a #LinphoneFriendList which are in turn stored inside the #LinphoneCore.
  * They can be stored inside a database if the path to it is configured, otherwise they will be lost after the #LinphoneCore is destroyed.
- * 
+ *
  * Thanks to the vCard plugin, you can also store more information like phone numbers, organization, etc...
  * @ingroup buddy_list
  */
@@ -278,7 +297,7 @@ typedef enum _LinphoneFriendCapability {
 
 /**
  * @brief This object representing a list of #LinphoneFriend.
- * 
+ *
  * You can use it to store contacts locally or synchronize them through CardDAV protocol.
  * @ingroup buddy_list
 **/
@@ -295,9 +314,9 @@ typedef struct _LinphoneFriendListCbs LinphoneFriendListCbs;
 * @ingroup buddy_list
 **/
 typedef enum _LinphoneFriendListStatus {
-	LinphoneFriendListOK, /**< Operation went fine */
-	LinphoneFriendListNonExistentFriend, /**< #LinphoneFriend wasn't found in the #LinphoneFriendList */
-	LinphoneFriendListInvalidFriend /**< #LinphoneFriend is already present in a #LinphoneFriendList */
+	LinphoneFriendListOK = 0, /**< Operation went fine */
+	LinphoneFriendListNonExistentFriend = 1, /**< #LinphoneFriend wasn't found in the #LinphoneFriendList */
+	LinphoneFriendListInvalidFriend = 2 /**< #LinphoneFriend is already present in a #LinphoneFriendList */
 } LinphoneFriendListStatus;
 
 /**
@@ -305,9 +324,9 @@ typedef enum _LinphoneFriendListStatus {
  * @ingroup buddy_list
  */
 typedef enum _LinphoneFriendListSyncStatus {
-	LinphoneFriendListSyncStarted, /**< Synchronization started */
-	LinphoneFriendListSyncSuccessful, /**< Synchronization finished successfuly */
-	LinphoneFriendListSyncFailure /**< Synchronization failed */
+	LinphoneFriendListSyncStarted = 0, /**< Synchronization started */
+	LinphoneFriendListSyncSuccessful = 1, /**< Synchronization finished successfuly */
+	LinphoneFriendListSyncFailure = 2 /**< Synchronization failed */
 } LinphoneFriendListSyncStatus;
 
 // -----------------------------------------------------------------------------
@@ -321,12 +340,12 @@ typedef enum _LinphoneFriendListSyncStatus {
  * - sections are defined in []
  * - each section contains a sequence of key=value pairs
  * - each line starting by a # is a comment
- * 
+ *
  * Various types can be used: strings and lists of strings, integers, floats, booleans (written as 0 or 1) and range of integers.
- * 
+ *
  * Usually a #LinphoneCore is initialized using two #LinphoneConfig, one default (where configuration changes through API calls will be saved)
  * and one named 'factory' which is read-only and overwrites any setting that may exists in the default one.
- * 
+ *
  * It is also possible to use only one (either default or factory) or even none.
  * @ingroup initializing
 **/
@@ -339,68 +358,68 @@ typedef struct _LpConfig LinphoneConfig;
 
 /**
  * @brief Describes the state of the remote configuring process of the #LinphoneCore object, 'Skipped' when the feature is disabled.
- * 
+ *
  * It is notified via the configuring_status() callback in #LinphoneCoreCbs.
  * @ingroup initializing
 **/
 typedef enum _LinphoneConfiguringState {
-	LinphoneConfiguringSuccessful,
-	LinphoneConfiguringFailed,
-	LinphoneConfiguringSkipped
+	LinphoneConfiguringSuccessful = 0,
+	LinphoneConfiguringFailed = 1,
+	LinphoneConfiguringSkipped = 2
 } LinphoneConfiguringState;
 
 /**
  * @brief Describes the global state of the #LinphoneCore object.
- * 
+ *
  * It is notified via the global_state_changed() callback in #LinphoneCoreCbs.
  * @ingroup initializing
 **/
 typedef enum _LinphoneGlobalState {
 	/** State in which we're in after linphone_core_stop(). Do not call any method while in this state except for linphone_core_start() */
-	LinphoneGlobalOff,
+	LinphoneGlobalOff = 0,
 	/** Transient state for when we call linphone_core_start() */
-	LinphoneGlobalStartup,
+	LinphoneGlobalStartup = 1,
 	/** Indicates #LinphoneCore has been started and is up and running */
-	LinphoneGlobalOn,
+	LinphoneGlobalOn = 2,
 	/** Transient state for when we call linphone_core_stop() */
-	LinphoneGlobalShutdown,
+	LinphoneGlobalShutdown = 3,
 	/** Transient state between Startup and On if there is a remote provisionning URI configured */
-	LinphoneGlobalConfiguring,
+	LinphoneGlobalConfiguring = 4,
 	/** #LinphoneCore state after being created by linphone_factory_create_core(), generally followed by a call to linphone_core_start() */
-	LinphoneGlobalReady
+	LinphoneGlobalReady = 5
 } LinphoneGlobalState;
 
 /**
  * @brief Describes proxy registration states.
- * 
+ *
  * It is notified via the registration_state_changed() callback in #LinphoneCoreCbs.
  * @ingroup proxies
 **/
 typedef enum _LinphoneRegistrationState {
-	LinphoneRegistrationNone, /**< Initial state for registrations */
-	LinphoneRegistrationProgress, /**< Registration is in progress */
-	LinphoneRegistrationOk,	/**< Registration is successful */
-	LinphoneRegistrationCleared, /**< Unregistration succeeded */
-	LinphoneRegistrationFailed	/**< Registration failed */
+	LinphoneRegistrationNone = 0, /**< Initial state for registrations */
+	LinphoneRegistrationProgress = 1, /**< Registration is in progress */
+	LinphoneRegistrationOk = 2,	/**< Registration is successful */
+	LinphoneRegistrationCleared = 3, /**< Unregistration succeeded */
+	LinphoneRegistrationFailed = 4	/**< Registration failed */
 } LinphoneRegistrationState;
 
 /**
  * @brief Main object to instanciate and on which to keep a reference.
- * 
+ *
  * This object is the first object to instanciante, and will allow you to perform all kind of tasks.
  * To create it, use either linphone_factory_create_core_3() or linphone_factory_create_core_with_config_3(),
  * see #LinphoneConfig for more information about factory and default config.
  * On some platforms like Android or iOS you will need to give it the Context of your application.
- * 
- * Once the #LinphoneCore is in state #LinphoneGlobalReady, use linphone_core_start(). 
+ *
+ * Once the #LinphoneCore is in state #LinphoneGlobalReady, use linphone_core_start().
  * It will then go to state #LinphoneGlobalOn and from that you can start using it for calls and chat messages.
  * It is recommended to add a #LinphoneCoreCbs listener using linphone_core_add_listener() to it to monitor different events.
- * 
+ *
  * To be able to receive events from the network, you must schedule a call linphone_core_iterate() often, like every 20ms.
  * On Android & iOS linphone_core_is_auto_iterate_enabled() is enabled by default so you don't have to worry about that unless you disable it
  * using linphone_core_set_auto_iterate_enabled() or by setting in the [misc] section of your configuration auto_iterate=0.
  * @warning Our API isn't thread-safe but also isn't blocking, so it is strongly recommend to always call our methods from the main thread.
- * 
+ *
  * Once you don't need it anymore, call linphone_core_stop() and release the reference on it so it can gracefully shutdown.
  * @ingroup initializing
  */
@@ -409,7 +428,7 @@ typedef struct _LinphoneCore LinphoneCore;
 /**
  * @brief The factory is a singleton object devoted to the creation of all the objects
  * of Liblinphone that cannot be created by #LinphoneCore itself.
- * 
+ *
  * It is also used to configure a few behaviors before creating the #LinphoneCore, like the logs verbosity or collection.
  * @ingroup initializing
  */
@@ -419,9 +438,9 @@ typedef struct _LinphoneFactory LinphoneFactory;
  * @brief That class holds all the callbacks which are called by #LinphoneCore.
  *
  * Once created, add your #LinphoneCoreCbs using linphone_core_add_listener().
- * Keep a reference on it as long as you need it. 
+ * Keep a reference on it as long as you need it.
  * You can use linphone_core_remove_listener() to remove it but that isn't mandatory.
- * 
+ *
  * The same applies to all listeners in our API.
  * @ingroup initializing
  */
@@ -433,10 +452,10 @@ typedef struct _LinphoneCoreCbs LinphoneCoreCbs;
 
 /**
  * @brief SIP transports & ports configuration object.
- * 
+ *
  * Indicates which transport among UDP, TCP, TLS and DTLS should be enabled and if so on which port to listen.
  * You can use special values like #LC_SIP_TRANSPORT_DISABLED (0), #LC_SIP_TRANSPORT_RANDOM (-1) and #LC_SIP_TRANSPORT_DONTBIND (-2).
- * 
+ *
  * Once configuration is complete, use linphone_core_set_transports() to apply it.
  * This will be saved in configuration file so you don't have to do it each time the #LinphoneCore starts.
  * @ingroup initializing
@@ -445,10 +464,10 @@ typedef struct _LinphoneTransports LinphoneTransports;
 
 /**
  * @brief Object describing policy regarding video streams establishments.
- * 
+ *
  * Use linphone_video_activation_policy_set_automatically_accept() and linphone_video_activation_policy_set_automatically_initiate()
  * to tell the Core to automatically accept or initiate video during calls.
- * 
+ *
  * Even if disabled, you'll still be able to add it later while the call is running.
  * @ingroup media_parameters
 **/
@@ -456,7 +475,7 @@ typedef struct _LinphoneVideoActivationPolicy LinphoneVideoActivationPolicy;
 
 /**
  * @brief This object represents a video definition, eg. it's width, it's height and possibly it's name.
- * 
+ *
  * It is mostly used to configure the default video size sent by your camera during a video call with
  * linphone_core_set_preferred_video_definition() method.
  * @ingroup media_parameters
@@ -472,9 +491,9 @@ typedef struct _LinphoneVideoDefinition LinphoneVideoDefinition;
  * @ingroup initializing
 **/
 typedef enum _LinphoneAddressFamily {
-	LinphoneAddressFamilyInet, /**< IpV4 */
-	LinphoneAddressFamilyInet6, /**< IpV6 */
-	LinphoneAddressFamilyUnspec, /**< Unknown */
+	LinphoneAddressFamilyInet = 0, /**< IpV4 */
+	LinphoneAddressFamilyInet6 = 1, /**< IpV6 */
+	LinphoneAddressFamilyUnspec = 2, /**< Unknown */
 } LinphoneAddressFamily;
 
 /**
@@ -482,8 +501,8 @@ typedef enum _LinphoneAddressFamily {
  * @ingroup network_parameters
 **/
 typedef enum _LinphoneAuthMethod {
-	LinphoneAuthHttpDigest, /**< Digest authentication requested */
-	LinphoneAuthTls, /**< Client certificate requested */
+	LinphoneAuthHttpDigest = 0, /**< Digest authentication requested */
+	LinphoneAuthTls = 1, /**< Client certificate requested */
 } LinphoneAuthMethod;
 
 /**
@@ -492,8 +511,8 @@ typedef enum _LinphoneAuthMethod {
 **/
 typedef enum _LinphoneAVPFMode {
 	LinphoneAVPFDefault = -1, /**< Use default value defined at upper level */
-	LinphoneAVPFDisabled, /**< AVPF is disabled */
-	LinphoneAVPFEnabled /**< AVPF is enabled */
+	LinphoneAVPFDisabled = 0, /**< AVPF is disabled */
+	LinphoneAVPFEnabled = 1 /**< AVPF is enabled */
 } LinphoneAVPFMode;
 
 /**
@@ -510,10 +529,10 @@ typedef struct _LinphoneBuffer LinphoneBuffer;
  * @ingroup buddy_list
  */
 typedef enum _LinphoneConsolidatedPresence {
-	LinphoneConsolidatedPresenceOnline,
-	LinphoneConsolidatedPresenceBusy,
-	LinphoneConsolidatedPresenceDoNotDisturb,
-	LinphoneConsolidatedPresenceOffline
+	LinphoneConsolidatedPresenceOnline = 0,
+	LinphoneConsolidatedPresenceBusy = 1,
+	LinphoneConsolidatedPresenceDoNotDisturb = 2,
+	LinphoneConsolidatedPresenceOffline = 3
 } LinphoneConsolidatedPresence;
 
 typedef struct _LinphoneContactProvider LinphoneContactProvider;
@@ -536,15 +555,15 @@ typedef struct belle_sip_dict LinphoneDictionary;
  * @ingroup media_parameters
 **/
 typedef enum _LinphoneEcCalibratorStatus {
-	LinphoneEcCalibratorInProgress, /**< The echo canceller calibration process is on going */
-	LinphoneEcCalibratorDone, /**< The echo canceller calibration has been performed and produced an echo delay measure */
-	LinphoneEcCalibratorFailed, /**< The echo canceller calibration process has failed */
-	LinphoneEcCalibratorDoneNoEcho /**< The echo canceller calibration has been performed and no echo has been detected */
+	LinphoneEcCalibratorInProgress = 0, /**< The echo canceller calibration process is on going */
+	LinphoneEcCalibratorDone = 1, /**< The echo canceller calibration has been performed and produced an echo delay measure */
+	LinphoneEcCalibratorFailed = 2, /**< The echo canceller calibration process has failed */
+	LinphoneEcCalibratorDoneNoEcho = 3 /**< The echo canceller calibration has been performed and no echo has been detected */
 } LinphoneEcCalibratorStatus;
 
 /**
  * @brief Object representing full details about a signaling error or status.
- * 
+ *
  * All #LinphoneErrorInfo object returned by the liblinphone API are readonly and transcients. For safety they must be used immediately
  * after obtaining them. Any other function call to the liblinphone may change their content or invalidate the pointer.
  * @ingroup misc
@@ -553,7 +572,7 @@ typedef struct _LinphoneErrorInfo LinphoneErrorInfo;
 
 /**
  * @brief Object representing an event state, which is subcribed or published.
- * 
+ *
  * @see linphone_core_publish()
  * @see linphone_core_subscribe()
  * @ingroup event_api
@@ -573,11 +592,11 @@ typedef struct _LinphoneEventCbs LinphoneEventCbs;
  * @donotwrap
 **/
 typedef enum _LinphoneFirewallPolicy {
-	LinphonePolicyNoFirewall, /**< Do not use any mechanism to pass through firewalls */
-	LinphonePolicyUseNatAddress, /**< Use the specified public adress */
-	LinphonePolicyUseStun, /**< Use a STUN server to get the public address */
-	LinphonePolicyUseIce, /**< Use the ICE protocol */
-	LinphonePolicyUseUpnp, /**< Use the uPnP protocol */
+	LinphonePolicyNoFirewall = 0, /**< Do not use any mechanism to pass through firewalls */
+	LinphonePolicyUseNatAddress = 1, /**< Use the specified public adress */
+	LinphonePolicyUseStun = 2, /**< Use a STUN server to get the public address */
+	LinphonePolicyUseIce = 3, /**< Use the ICE protocol */
+	LinphonePolicyUseUpnp = 4, /**< Use the uPnP protocol */
 } LinphoneFirewallPolicy;
 
 /**
@@ -585,17 +604,17 @@ typedef enum _LinphoneFirewallPolicy {
  * @ingroup initializing
 **/
 typedef enum _LinphoneIceState {
-	LinphoneIceStateNotActivated, /**< ICE has not been activated for this call or stream*/
-	LinphoneIceStateFailed, /**< ICE processing has failed */
-	LinphoneIceStateInProgress, /**< ICE process is in progress */
-	LinphoneIceStateHostConnection, /**< ICE has established a direct connection to the remote host */
-	LinphoneIceStateReflexiveConnection, /**< ICE has established a connection to the remote host through one or several NATs */
-	LinphoneIceStateRelayConnection /**< ICE has established a connection through a relay */
+	LinphoneIceStateNotActivated = 0, /**< ICE has not been activated for this call or stream*/
+	LinphoneIceStateFailed = 1, /**< ICE processing has failed */
+	LinphoneIceStateInProgress = 2, /**< ICE process is in progress */
+	LinphoneIceStateHostConnection = 3, /**< ICE has established a direct connection to the remote host */
+	LinphoneIceStateReflexiveConnection = 4, /**< ICE has established a connection to the remote host through one or several NATs */
+	LinphoneIceStateRelayConnection = 5 /**< ICE has established a connection through a relay */
 } LinphoneIceState;
 
 /**
  * @brief IM encryption engine.
- * 
+ *
  * @see https://wiki.linphone.org/xwiki/wiki/public/view/Lib/Features/Instant%20Messaging%20Encryption%20Engine/
  * @ingroup misc
  * @donotwrap
@@ -611,7 +630,7 @@ typedef struct _LinphoneImEncryptionEngineCbs LinphoneImEncryptionEngineCbs;
 
 /**
  * @brief Policy to use to send/receive instant messaging composing/delivery/display notifications.
- * 
+ *
  * The sending of this information is done as in the RFCs 3994 (is_composing) and 5438 (imdn delivered/displayed).
  * @ingroup chatroom
  */
@@ -631,9 +650,9 @@ typedef struct _LinphoneLDAPContactSearch LinphoneLDAPContactSearch;
  * @ingroup network_parameters
  */
 typedef enum _LinphoneLimeState {
-	LinphoneLimeDisabled, /**< Lime is not used at all */
-	LinphoneLimeMandatory, /**< Lime is always used */
-	LinphoneLimePreferred, /**< Lime is used only if we already shared a secret with remote */
+	LinphoneLimeDisabled = 0, /**< Lime is not used at all */
+	LinphoneLimeMandatory = 1, /**< Lime is always used */
+	LinphoneLimePreferred = 2, /**< Lime is used only if we already shared a secret with remote */
 } LinphoneLimeState;
 
 /**
@@ -641,9 +660,9 @@ typedef enum _LinphoneLimeState {
  * @ingroup initializing
  */
 typedef enum _LinphoneSessionExpiresRefresher {
-  LinphoneSessionExpiresRefresherUnspecified,
-  LinphoneSessionExpiresRefresherUAS,
-  LinphoneSessionExpiresRefresherUAC
+  LinphoneSessionExpiresRefresherUnspecified = 0,
+  LinphoneSessionExpiresRefresherUAS = 1,
+  LinphoneSessionExpiresRefresherUAC = 2
 } LinphoneSessionExpiresRefresher;
 
 /**
@@ -651,9 +670,9 @@ typedef enum _LinphoneSessionExpiresRefresher {
  * @ingroup initializing
  */
 typedef enum _LinphoneLogCollectionState {
-	LinphoneLogCollectionDisabled,
-	LinphoneLogCollectionEnabled,
-	LinphoneLogCollectionEnabledWithoutPreviousLogHandler
+	LinphoneLogCollectionDisabled = 0,
+	LinphoneLogCollectionEnabled = 1,
+	LinphoneLogCollectionEnabledWithoutPreviousLogHandler = 2
 } LinphoneLogCollectionState;
 
 /**
@@ -661,9 +680,9 @@ typedef enum _LinphoneLogCollectionState {
  * @ingroup initializing
  */
 typedef enum _LinphoneCoreLogCollectionUploadState {
-	LinphoneCoreLogCollectionUploadStateInProgress, /**< Delivery in progress */
-	LinphoneCoreLogCollectionUploadStateDelivered, /**< Log collection upload successfully delivered and acknowledged by remote end point */
-	LinphoneCoreLogCollectionUploadStateNotDelivered, /**< Log collection upload was not delivered */
+	LinphoneCoreLogCollectionUploadStateInProgress = 0, /**< Delivery in progress */
+	LinphoneCoreLogCollectionUploadStateDelivered = 1, /**< Log collection upload successfully delivered and acknowledged by remote end point */
+	LinphoneCoreLogCollectionUploadStateNotDelivered = 2, /**< Log collection upload was not delivered */
 } LinphoneCoreLogCollectionUploadState;
 
 /**
@@ -672,10 +691,10 @@ typedef enum _LinphoneCoreLogCollectionUploadState {
  */
 typedef enum _LinphoneMediaDirection {
 	LinphoneMediaDirectionInvalid = -1,
-	LinphoneMediaDirectionInactive, /** No active media not supported yet*/
-	LinphoneMediaDirectionSendOnly, /** Send only mode*/
-	LinphoneMediaDirectionRecvOnly, /** recv only mode*/
-	LinphoneMediaDirectionSendRecv, /** send receive*/
+	LinphoneMediaDirectionInactive = 0, /** No active media not supported yet*/
+	LinphoneMediaDirectionSendOnly = 1, /** Send only mode*/
+	LinphoneMediaDirectionRecvOnly = 2, /** recv only mode*/
+	LinphoneMediaDirectionSendRecv = 3, /** send receive*/
 } LinphoneMediaDirection;
 
 /**
@@ -683,8 +702,8 @@ typedef enum _LinphoneMediaDirection {
  * @ingroup media_parameters
 **/
 typedef enum _LinphoneMediaResourceMode {
-	LinphoneExclusiveMediaResources, /**< Media resources are not shared */
-	LinphoneSharedMediaResources, /**< Media resources are shared */
+	LinphoneExclusiveMediaResources = 0, /**< Media resources are not shared */
+	LinphoneSharedMediaResources = 1, /**< Media resources are shared */
 } LinphoneMediaResourceMode;
 
 /**
@@ -692,10 +711,10 @@ typedef enum _LinphoneMediaResourceMode {
  * @ingroup media_parameters
 **/
 typedef enum _LinphoneMediaEncryption {
-	LinphoneMediaEncryptionNone, /**< No media encryption is used */
-	LinphoneMediaEncryptionSRTP, /**< Use SRTP media encryption */
-	LinphoneMediaEncryptionZRTP, /**< Use ZRTP media encryption */
-	LinphoneMediaEncryptionDTLS /**< Use DTLS media encryption */
+	LinphoneMediaEncryptionNone = 0, /**< No media encryption is used */
+	LinphoneMediaEncryptionSRTP = 1, /**< Use SRTP media encryption */
+	LinphoneMediaEncryptionZRTP = 2, /**< Use ZRTP media encryption */
+	LinphoneMediaEncryptionDTLS = 3 /**< Use DTLS media encryption */
 } LinphoneMediaEncryption;
 
 /**
@@ -703,9 +722,9 @@ typedef enum _LinphoneMediaEncryption {
  * @ingroup media_parameters
 **/
 typedef enum _LinphoneZrtpPeerStatus {
-	LinphoneZrtpPeerStatusUnknown, /**< Peer URI unkown or never validated/invalidated the SAS */
-	LinphoneZrtpPeerStatusInvalid, /**< Peer URI SAS rejected in database */
-	LinphoneZrtpPeerStatusValid /**< Peer URI SAS validated in database */
+	LinphoneZrtpPeerStatusUnknown = 0, /**< Peer URI unkown or never validated/invalidated the SAS */
+	LinphoneZrtpPeerStatusInvalid = 1, /**< Peer URI SAS rejected in database */
+	LinphoneZrtpPeerStatusValid = 2 /**< Peer URI SAS validated in database */
 } LinphoneZrtpPeerStatus;
 
 /**
@@ -720,20 +739,20 @@ typedef struct _LinphoneNatPolicy LinphoneNatPolicy;
  * @donotwrap
  */
 typedef enum _LinphoneOnlineStatus{
-	LinphoneStatusOffline, /**< Offline */
-	LinphoneStatusOnline, /**< Online */
-	LinphoneStatusBusy, /**< Busy */
-	LinphoneStatusBeRightBack, /**< Be right back */
-	LinphoneStatusAway, /**< Away */
-	LinphoneStatusOnThePhone, /** On the phone */
-	LinphoneStatusOutToLunch, /**< Out to lunch */
-	LinphoneStatusDoNotDisturb, /**< Do not disturb */
-	LinphoneStatusMoved, /**< Moved in this sate, call can be redirected if an alternate contact address has been set using function linphone_core_set_presence_info() */
-	LinphoneStatusAltService, /**< Using another messaging service */
-	LinphoneStatusPending, /**< Pending */
-	LinphoneStatusVacation, /**< Vacation */
+	LinphoneStatusOffline = 0, /**< Offline */
+	LinphoneStatusOnline = 1, /**< Online */
+	LinphoneStatusBusy = 2, /**< Busy */
+	LinphoneStatusBeRightBack = 3, /**< Be right back */
+	LinphoneStatusAway = 4, /**< Away */
+	LinphoneStatusOnThePhone = 5, /** On the phone */
+	LinphoneStatusOutToLunch = 6, /**< Out to lunch */
+	LinphoneStatusDoNotDisturb = 7, /**< Do not disturb */
+	LinphoneStatusMoved = 8, /**< Moved in this sate, call can be redirected if an alternate contact address has been set using function linphone_core_set_presence_info() */
+	LinphoneStatusAltService = 9, /**< Using another messaging service */
+	LinphoneStatusPending = 10, /**< Pending */
+	LinphoneStatusVacation = 11, /**< Vacation */
 
-	LinphoneStatusEnd
+	LinphoneStatusEnd = 12
 } LinphoneOnlineStatus;
 
 /**
@@ -753,9 +772,9 @@ typedef struct _LinphonePlayerCbs LinphonePlayerCbs;
  * @ingroup call_control
  */
 typedef enum LinphonePlayerState {
-	LinphonePlayerClosed, /**< No file is opened for playing. */
-	LinphonePlayerPaused, /**< The player is paused. */
-	LinphonePlayerPlaying /**< The player is playing. */
+	LinphonePlayerClosed = 0, /**< No file is opened for playing. */
+	LinphonePlayerPaused = 1, /**< The player is paused. */
+	LinphonePlayerPlaying = 2 /**< The player is playing. */
 } LinphonePlayerState;
 
 /**
@@ -772,92 +791,92 @@ typedef enum LinphonePresenceActivityType {
 	/** The person has a calendar appointment, without specifying exactly of what type. This activity is
 	 *  indicated if more detailed information is not available or the person chooses not to reveal more
 	 * information. */
-	LinphonePresenceActivityAppointment,
+	LinphonePresenceActivityAppointment = 0,
 
 	/** The person is physically away from all interactive communication devices. */
-	LinphonePresenceActivityAway,
+	LinphonePresenceActivityAway = 1,
 
 	/** The person is eating the first meal of the day, usually eaten in the morning. */
-	LinphonePresenceActivityBreakfast,
+	LinphonePresenceActivityBreakfast = 2,
 
 	/** The person is busy, without further details. */
-	LinphonePresenceActivityBusy,
+	LinphonePresenceActivityBusy = 3,
 
 	/** The person is having his or her main meal of the day, eaten in the evening or at midday. */
-	LinphonePresenceActivityDinner,
+	LinphonePresenceActivityDinner = 4,
 
 	/**  This is a scheduled national or local holiday. */
-	LinphonePresenceActivityHoliday,
+	LinphonePresenceActivityHoliday = 5,
 
 	/** The person is riding in a vehicle, such as a car, but not steering. */
-	LinphonePresenceActivityInTransit,
+	LinphonePresenceActivityInTransit = 6,
 
 	/** The person is looking for (paid) work. */
-	LinphonePresenceActivityLookingForWork,
+	LinphonePresenceActivityLookingForWork = 7,
 
 	/** The person is eating his or her midday meal. */
-	LinphonePresenceActivityLunch,
+	LinphonePresenceActivityLunch = 8,
 
 	/** The person is scheduled for a meal, without specifying whether it is breakfast, lunch, or dinner,
 	 *  or some other meal. */
-	LinphonePresenceActivityMeal,
+	LinphonePresenceActivityMeal = 9,
 
 	/** The person is in an assembly or gathering of people, as for a business, social, or religious purpose.
 	 *  A meeting is a sub-class of an appointment. */
-	LinphonePresenceActivityMeeting,
+	LinphonePresenceActivityMeeting = 10,
 
 	/** The person is talking on the telephone. */
-	LinphonePresenceActivityOnThePhone,
+	LinphonePresenceActivityOnThePhone = 11,
 
 	/** The person is engaged in an activity with no defined representation. A string describing the activity
 	 *  in plain text SHOULD be provided. */
-	LinphonePresenceActivityOther,
+	LinphonePresenceActivityOther = 12,
 
 	/** A performance is a sub-class of an appointment and includes musical, theatrical, and cinematic
 	 *  performances as well as lectures. It is distinguished from a meeting by the fact that the person
 	 *  may either be lecturing or be in the audience, with a potentially large number of other people,
 	 *  making interruptions particularly noticeable. */
-	LinphonePresenceActivityPerformance,
+	LinphonePresenceActivityPerformance = 13,
 
 	/** The person will not return for the foreseeable future, e.g., because it is no longer working for
 	 *  the company. */
-	LinphonePresenceActivityPermanentAbsence,
+	LinphonePresenceActivityPermanentAbsence = 14,
 
 	/** The person is occupying himself or herself in amusement, sport, or other recreation. */
-	LinphonePresenceActivityPlaying,
+	LinphonePresenceActivityPlaying = 15,
 
 	/** The person is giving a presentation, lecture, or participating in a formal round-table discussion. */
-	LinphonePresenceActivityPresentation,
+	LinphonePresenceActivityPresentation = 16,
 
 	/** The person is visiting stores in search of goods or services. */
-	LinphonePresenceActivityShopping,
+	LinphonePresenceActivityShopping = 17,
 
 	/** The person is sleeping.*/
-	LinphonePresenceActivitySleeping,
+	LinphonePresenceActivitySleeping = 18,
 
 	/** The person is observing an event, such as a sports event. */
-	LinphonePresenceActivitySpectator,
+	LinphonePresenceActivitySpectator = 19,
 
 	/** The person is controlling a vehicle, watercraft, or plane. */
-	LinphonePresenceActivitySteering,
+	LinphonePresenceActivitySteering = 20,
 
 	/** The person is on a business or personal trip, but not necessarily in-transit. */
-	LinphonePresenceActivityTravel,
+	LinphonePresenceActivityTravel = 21,
 
 	/** The person is watching television. */
-	LinphonePresenceActivityTV,
+	LinphonePresenceActivityTV = 22,
 
 	/** The activity of the person is unknown. */
-	LinphonePresenceActivityUnknown,
+	LinphonePresenceActivityUnknown = 23,
 
 	/** A period of time devoted to pleasure, rest, or relaxation. */
-	LinphonePresenceActivityVacation,
+	LinphonePresenceActivityVacation = 24,
 
 	/** The person is engaged in, typically paid, labor, as part of a profession or job. */
-	LinphonePresenceActivityWorking,
+	LinphonePresenceActivityWorking = 25,
 
 	/** The person is participating in religious rites. */
-	LinphonePresenceActivityWorship
+	LinphonePresenceActivityWorship = 26
 } LinphonePresenceActivityType;
 
 /**
@@ -866,10 +885,10 @@ typedef enum LinphonePresenceActivityType {
  */
 typedef enum LinphonePresenceBasicStatus {
 	/** This value means that the associated contact element, if any, is ready to accept communication. */
-	LinphonePresenceBasicStatusOpen,
+	LinphonePresenceBasicStatusOpen = 0,
 
 	/** This value means that the associated contact element, if any, is unable to accept communication. */
-	LinphonePresenceBasicStatusClosed
+	LinphonePresenceBasicStatusClosed = 1
 } LinphonePresenceBasicStatus;
 
 /**
@@ -957,12 +976,12 @@ typedef unsigned int LinphonePrivacyMask;
  * @ingroup event_api
 **/
 typedef enum _LinphonePublishState{
-	LinphonePublishNone, /**< Initial state, do not use */
-	LinphonePublishProgress, /**< An outgoing publish was created and submitted */
-	LinphonePublishOk, /**< Publish is accepted */
-	LinphonePublishError, /**< Publish encoutered an error, linphone_event_get_reason() gives reason code */
-	LinphonePublishExpiring, /**< Publish is about to expire, only sent if [sip]->refresh_generic_publish property is set to 0 */
-	LinphonePublishCleared /**< Event has been un published */
+	LinphonePublishNone = 0, /**< Initial state, do not use */
+	LinphonePublishProgress = 1, /**< An outgoing publish was created and submitted */
+	LinphonePublishOk = 2, /**< Publish is accepted */
+	LinphonePublishError = 3, /**< Publish encoutered an error, linphone_event_get_reason() gives reason code */
+	LinphonePublishExpiring = 4, /**< Publish is about to expire, only sent if [sip]->refresh_generic_publish property is set to 0 */
+	LinphonePublishCleared = 5 /**< Event has been un published */
 } LinphonePublishState;
 
 /**
@@ -973,29 +992,30 @@ typedef enum _LinphonePublishState{
  * @ingroup misc
 **/
 typedef enum _LinphoneReason{
-	LinphoneReasonNone, /**< No reason has been set by the core */
-	LinphoneReasonNoResponse, /**< No response received from remote */
-	LinphoneReasonForbidden, /**< Authentication failed due to bad credentials or resource forbidden */
-	LinphoneReasonDeclined, /**< The call has been declined */
-	LinphoneReasonNotFound, /**< Destination of the call was not found */
-	LinphoneReasonNotAnswered, /**< The call was not answered in time (request timeout) */
-	LinphoneReasonBusy, /**< Phone line was busy */
-	LinphoneReasonUnsupportedContent, /**< Unsupported content */
-	LinphoneReasonBadEvent, /**< Bad event */
-	LinphoneReasonIOError, /**< Transport error: connection failures, disconnections etc... */
-	LinphoneReasonDoNotDisturb, /**< Do not disturb reason */
-	LinphoneReasonUnauthorized, /**< Operation is unauthorized because missing credential */
-	LinphoneReasonNotAcceptable, /**< Operation is rejected due to incompatible or unsupported media parameters */
-	LinphoneReasonNoMatch, /**< Operation could not be executed by server or remote client because it didn't have any context for it */
-	LinphoneReasonMovedPermanently, /**< Resource moved permanently */
-	LinphoneReasonGone, /**< Resource no longer exists */
-	LinphoneReasonTemporarilyUnavailable, /**< Temporarily unavailable */
-	LinphoneReasonAddressIncomplete, /**< Address incomplete */
-	LinphoneReasonNotImplemented, /**< Not implemented */
-	LinphoneReasonBadGateway, /**< Bad gateway */
-	LinphoneReasonSessionIntervalTooSmall, /**< The received request contains a Session-Expires header field with a duration below the minimum timer */
-	LinphoneReasonServerTimeout, /**< Server timeout */
-	LinphoneReasonUnknown /**< Unknown reason */
+	LinphoneReasonNone = 0, /**< No reason has been set by the core */
+	LinphoneReasonNoResponse = 1, /**< No response received from remote */
+	LinphoneReasonForbidden = 2, /**< Authentication failed due to bad credentials or resource forbidden */
+	LinphoneReasonDeclined = 3, /**< The call has been declined */
+	LinphoneReasonNotFound = 4, /**< Destination of the call was not found */
+	LinphoneReasonNotAnswered = 5, /**< The call was not answered in time (request timeout) */
+	LinphoneReasonBusy = 6, /**< Phone line was busy */
+	LinphoneReasonUnsupportedContent = 7, /**< Unsupported content */
+	LinphoneReasonBadEvent = 8, /**< Bad event */
+	LinphoneReasonIOError = 9, /**< Transport error: connection failures, disconnections etc... */
+	LinphoneReasonDoNotDisturb = 10, /**< Do not disturb reason */
+	LinphoneReasonUnauthorized = 11, /**< Operation is unauthorized because missing credential */
+	LinphoneReasonNotAcceptable = 12, /**< Operation is rejected due to incompatible or unsupported media parameters */
+	LinphoneReasonNoMatch = 13, /**< Operation could not be executed by server or remote client because it didn't have any context for it */
+	LinphoneReasonMovedPermanently = 14, /**< Resource moved permanently */
+	LinphoneReasonGone = 15, /**< Resource no longer exists */
+	LinphoneReasonTemporarilyUnavailable = 16, /**< Temporarily unavailable */
+	LinphoneReasonAddressIncomplete = 17, /**< Address incomplete */
+	LinphoneReasonNotImplemented = 18, /**< Not implemented */
+	LinphoneReasonBadGateway = 19, /**< Bad gateway */
+	LinphoneReasonSessionIntervalTooSmall = 20, /**< The received request contains a Session-Expires header field with a duration below the minimum timer */
+	LinphoneReasonServerTimeout = 21, /**< Server timeout */
+	LinphoneReasonUnknown = 22, /**< Unknown reason */
+	LinphoneReasonTransferred= 23 /**< The call has been transferred */
 } LinphoneReason;
 
 #define LinphoneReasonBadCredentials LinphoneReasonForbidden
@@ -1033,10 +1053,10 @@ typedef struct _LinphoneSoundDaemon LinphoneSoundDaemon;
  * @ingroup initializing
 **/
 typedef enum _LinphoneStreamType {
-	LinphoneStreamTypeAudio,
-	LinphoneStreamTypeVideo,
-	LinphoneStreamTypeText,
-	LinphoneStreamTypeUnknown /* WARNING: Make sure this value remains the last one in the list */
+	LinphoneStreamTypeAudio = 0,
+	LinphoneStreamTypeVideo = 1,
+	LinphoneStreamTypeText = 2,
+	LinphoneStreamTypeUnknown = 3 /* WARNING: Make sure this value remains the last one in the list */
 } LinphoneStreamType;
 
 /**
@@ -1049,9 +1069,9 @@ typedef enum _LinphoneSubscribePolicy {
 	 * Does not automatically accept an incoming subscription request.
 	 * This policy implies that a decision has to be taken for each incoming subscription request notified by callback LinphoneCoreVTable.new_subscription_requested
 	 */
-	LinphoneSPWait,
-	LinphoneSPDeny, /**< Rejects incoming subscription request */
-	LinphoneSPAccept /**< Automatically accepts a subscription request */
+	LinphoneSPWait = 0,
+	LinphoneSPDeny = 1, /**< Rejects incoming subscription request */
+	LinphoneSPAccept = 2 /**< Automatically accepts a subscription request */
 } LinphoneSubscribePolicy;
 
 /**
@@ -1059,9 +1079,9 @@ typedef enum _LinphoneSubscribePolicy {
  * @ingroup event_api
 **/
 typedef enum _LinphoneSubscriptionDir{
-	LinphoneSubscriptionIncoming, /**< Incoming subscription. */
-	LinphoneSubscriptionOutgoing, /**< Outgoing subscription. */
-	LinphoneSubscriptionInvalidDir /**< Invalid subscription direction. */
+	LinphoneSubscriptionIncoming = 0, /**< Incoming subscription. */
+	LinphoneSubscriptionOutgoing = 1, /**< Outgoing subscription. */
+	LinphoneSubscriptionInvalidDir = 2 /**< Invalid subscription direction. */
 } LinphoneSubscriptionDir;
 
 /**
@@ -1070,14 +1090,14 @@ typedef enum _LinphoneSubscriptionDir{
  * @ingroup event_api
 **/
 typedef enum _LinphoneSubscriptionState{
-	LinphoneSubscriptionNone, /**< Initial state, should not be used */
-	LinphoneSubscriptionOutgoingProgress, /**< An outgoing subcription was sent */
-	LinphoneSubscriptionIncomingReceived, /**< An incoming subcription is received */
-	LinphoneSubscriptionPending, /**< Subscription is pending, waiting for user approval */
-	LinphoneSubscriptionActive, /**< Subscription is accepted */
-	LinphoneSubscriptionTerminated, /**< Subscription is terminated normally */
-	LinphoneSubscriptionError, /**< Subscription was terminated by an error, indicated by linphone_event_get_reason() */
-	LinphoneSubscriptionExpiring, /**< Subscription is about to expire, only sent if [sip]->refresh_generic_subscribe property is set to 0 */
+	LinphoneSubscriptionNone = 0, /**< Initial state, should not be used */
+	LinphoneSubscriptionOutgoingProgress = 1, /**< An outgoing subcription was sent */
+	LinphoneSubscriptionIncomingReceived = 2, /**< An incoming subcription is received */
+	LinphoneSubscriptionPending = 3, /**< Subscription is pending, waiting for user approval */
+	LinphoneSubscriptionActive = 4, /**< Subscription is accepted */
+	LinphoneSubscriptionTerminated = 5, /**< Subscription is terminated normally */
+	LinphoneSubscriptionError = 6, /**< Subscription was terminated by an error, indicated by linphone_event_get_reason() */
+	LinphoneSubscriptionExpiring = 7, /**< Subscription is about to expire, only sent if [sip]->refresh_generic_subscribe property is set to 0 */
 } LinphoneSubscriptionState;
 
 /**
@@ -1085,11 +1105,12 @@ typedef enum _LinphoneSubscriptionState{
  * @ingroup misc
 **/
 typedef enum _LinphoneToneID {
-	LinphoneToneUndefined, /**< Not a tone */
-	LinphoneToneBusy, /**< Busy tone */
-	LinphoneToneCallWaiting, /** Call waiting tone */
-	LinphoneToneCallOnHold, /** Call on hold tone */
-	LinphoneToneCallLost /** Tone played when call is abruptly disconnected (media lost)*/
+	LinphoneToneUndefined = 0, /**< Not a tone */
+	LinphoneToneBusy = 1, /**< Busy tone */
+	LinphoneToneCallWaiting = 2, /** Call waiting tone */
+	LinphoneToneCallOnHold = 3, /** Call on hold tone */
+	LinphoneToneCallLost = 4, /** Tone played when call is abruptly disconnected (media lost)*/
+	LinphoneToneCallEnd = 5 /** When the call end for any reason but lost */
 } LinphoneToneID;
 
 /**
@@ -1097,10 +1118,10 @@ typedef enum _LinphoneToneID {
  * @ingroup linphone_address
 **/
 typedef enum _LinphoneTransportType {
-	LinphoneTransportUdp,
-	LinphoneTransportTcp,
-	LinphoneTransportTls,
-	LinphoneTransportDtls
+	LinphoneTransportUdp = 0,
+	LinphoneTransportTcp = 1,
+	LinphoneTransportTls = 2,
+	LinphoneTransportDtls = 3
 } LinphoneTransportType;
 /* WARNING This enum MUST be kept in sync with the SalTransport enum from sal.h */
 
@@ -1121,9 +1142,9 @@ typedef struct _LinphoneTunnelConfig LinphoneTunnelConfig;
  * @ingroup tunnel
 **/
 typedef enum _LinphoneTunnelMode {
-	LinphoneTunnelModeDisable, /**< The tunnel is disabled */
-	LinphoneTunnelModeEnable, /**< The tunnel is enabled */
-	LinphoneTunnelModeAuto /**< The tunnel is enabled automatically if it is required */
+	LinphoneTunnelModeDisable = 0, /**< The tunnel is disabled */
+	LinphoneTunnelModeEnable = 1, /**< The tunnel is enabled */
+	LinphoneTunnelModeAuto = 2 /**< The tunnel is enabled automatically if it is required */
 } LinphoneTunnelMode;
 
 /**
@@ -1131,14 +1152,14 @@ typedef enum _LinphoneTunnelMode {
  * @ingroup initializing
 **/
 typedef enum _LinphoneUpnpState {
-	LinphoneUpnpStateIdle, /**< uPnP is not activate */
-	LinphoneUpnpStatePending, /**< uPnP process is in progress */
-	LinphoneUpnpStateAdding, /**< Internal use: Only used by port binding */
-	LinphoneUpnpStateRemoving, /**< Internal use: Only used by port binding */
-	LinphoneUpnpStateNotAvailable, /**< uPnP is not available */
-	LinphoneUpnpStateOk, /**< uPnP is enabled */
-	LinphoneUpnpStateKo, /**< uPnP processing has failed */
-	LinphoneUpnpStateBlacklisted, /**< IGD router is blacklisted */
+	LinphoneUpnpStateIdle = 0, /**< uPnP is not activate */
+	LinphoneUpnpStatePending = 1, /**< uPnP process is in progress */
+	LinphoneUpnpStateAdding = 2, /**< Internal use: Only used by port binding */
+	LinphoneUpnpStateRemoving = 3, /**< Internal use: Only used by port binding */
+	LinphoneUpnpStateNotAvailable = 4, /**< uPnP is not available */
+	LinphoneUpnpStateOk = 5, /**< uPnP is enabled */
+	LinphoneUpnpStateKo = 6, /**< uPnP processing has failed */
+	LinphoneUpnpStateBlacklisted = 7, /**< IGD router is blacklisted */
 } LinphoneUpnpState;
 
 /**
@@ -1152,9 +1173,9 @@ typedef struct _LinphoneVcard LinphoneVcard;
  * @ingroup misc
  */
 typedef enum _LinphoneVersionUpdateCheckResult {
-	LinphoneVersionUpdateCheckUpToDate,
-	LinphoneVersionUpdateCheckNewVersionAvailable,
-	LinphoneVersionUpdateCheckError
+	LinphoneVersionUpdateCheckUpToDate = 0,
+	LinphoneVersionUpdateCheckNewVersionAvailable = 1,
+	LinphoneVersionUpdateCheckError = 2
 } LinphoneVersionUpdateCheckResult;
 
 /**
@@ -1177,13 +1198,14 @@ typedef struct LinphoneVideoSizeDef {
 /**
  * Old name of #LinphoneVideoSizeDef
  * @deprecated 03/02/2017
+ * @donotwrap
  */
 typedef LinphoneVideoSizeDef MSVideoSizeDef;
 
 typedef enum _LinphoneWaitingState {
-	LinphoneWaitingStart,
-	LinphoneWaitingProgress,
-	LinphoneWaitingFinished
+	LinphoneWaitingStart = 0,
+	LinphoneWaitingProgress = 1,
+	LinphoneWaitingFinished = 2
 } LinphoneWaitingState;
 
 /**
@@ -1191,10 +1213,10 @@ typedef enum _LinphoneWaitingState {
 * @ingroup misc
 **/
 typedef enum _LinphoneXmlRpcArgType {
-	LinphoneXmlRpcArgNone,
-	LinphoneXmlRpcArgInt,
-	LinphoneXmlRpcArgString,
-	LinphoneXmlRpcArgStringStruct
+	LinphoneXmlRpcArgNone = 0,
+	LinphoneXmlRpcArgInt = 1,
+	LinphoneXmlRpcArgString = 2,
+	LinphoneXmlRpcArgStringStruct = 3
 } LinphoneXmlRpcArgType;
 
 /**
@@ -1220,9 +1242,9 @@ typedef struct _LinphoneXmlRpcSession LinphoneXmlRpcSession;
 * @ingroup misc
 **/
 typedef enum _LinphoneXmlRpcStatus {
-	LinphoneXmlRpcStatusPending,
-	LinphoneXmlRpcStatusOk,
-	LinphoneXmlRpcStatusFailed
+	LinphoneXmlRpcStatusPending = 0,
+	LinphoneXmlRpcStatusOk = 1,
+	LinphoneXmlRpcStatusFailed = 2
 } LinphoneXmlRpcStatus;
 
 typedef struct _LsdPlayer LsdPlayer;

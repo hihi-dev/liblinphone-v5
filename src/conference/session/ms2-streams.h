@@ -59,6 +59,8 @@ public:
 	virtual void iceStateChanged() override;
 	virtual void connectToMixer(StreamMixer *mixer) override;
 	virtual void disconnectFromMixer()override;
+
+	virtual void initZrtp() = 0;
 	
 	/* RtpInterface */
 	virtual bool avpfEnabled() const override;
@@ -75,8 +77,8 @@ protected:
 	std::string getBindIp();
 	int getBindPort();
 	void initializeSessions(MediaStream *stream);
-	RtpProfile * makeProfile(const SalMediaDescription *md, const SalStreamDescription *desc, int *usedPt);
-	int getIdealAudioBandwidth (const SalMediaDescription *md, const SalStreamDescription *desc);
+	RtpProfile * makeProfile(const std::shared_ptr<SalMediaDescription> & md, const SalStreamDescription & desc, int *usedPt);
+	int getIdealAudioBandwidth (const std::shared_ptr<SalMediaDescription> & md, const SalStreamDescription & desc);
 	RtpSession* createRtpIoSession();
 	void updateCryptoParameters(const OfferAnswerContext &params);
 	void updateDestinations(const OfferAnswerContext &params);
@@ -99,8 +101,9 @@ protected:
 	bool mMuted = false; /* to handle special cases where we want the audio to be muted - not related with linphone_core_enable_mic().*/
 	bool mDtlsStarted = false;
 private:
+	void fillPotentialCfgGraph(OfferAnswerContext & ctx);
 	void initRtpBundle(const OfferAnswerContext &params);
-	RtpBundle *createOrGetRtpBundle(const SalStreamDescription *sd);
+	RtpBundle *createOrGetRtpBundle(const SalStreamDescription & sd);
 	void removeFromBundle();
 	void notifyStatsUpdated();
 	void handleEvents();
@@ -108,12 +111,16 @@ private:
 	void initMulticast(const OfferAnswerContext &params);
 	void configureRtpSession(RtpSession *session);
 	void applyJitterBufferParams (RtpSession *session);
+	void setupSrtp(const OfferAnswerContext &params);
 	void setupDtlsParams(MediaStream *ms);
+	void initDtlsParams(MediaStream *ms);
 	void configureRtpSessionForRtcpFb (const OfferAnswerContext &params);
 	void configureRtpSessionForRtcpXr(const OfferAnswerContext &params);
 	void configureAdaptiveRateControl(const OfferAnswerContext &params);
 	void updateIceInStats(LinphoneIceState state);
 	void updateIceInStats();
+	void addAcapToStream(std::shared_ptr<SalMediaDescription> & desc, const PotentialCfgGraph::session_description_base_cap::key_type & streamIdx, const std::string & attrName, const std::string & attrValue);
+	bool encryptionFound(const SalStreamDescription::tcap_map_t & caps, const LinphoneMediaEncryption encEnum) const;
 	belle_sip_source_t *mTimer = nullptr;
 	IceCheckList *mIceCheckList = nullptr;
 	RtpBundle *mRtpBundle = nullptr;
@@ -142,6 +149,8 @@ public:
 	virtual void sessionConfirmed(const OfferAnswerContext &ctx) override;
 	virtual void stop() override;
 	virtual void finish() override;
+	virtual void initZrtp() override;
+	virtual void startZrtp() override;
 	
 	/* AudioControlInterface */
 	virtual void enableMic(bool value) override;
@@ -181,7 +190,7 @@ private:
 	virtual void handleEvent(const OrtpEvent *ev) override;
 	void setupMediaLossCheck();
 	void setPlaybackGainDb (float gain);
-	void setZrtpCryptoTypesParameters(MSZrtpParams *params, bool haveZrtpHash);
+	void setZrtpCryptoTypesParameters(MSZrtpParams *params, bool localIsOffer);
 	void startZrtpPrimaryChannel(const OfferAnswerContext &params);
 	static void parameterizeEqualizer(AudioStream *as, LinphoneCore *lc);
 	static void configureFlowControl(AudioStream *as, LinphoneCore *lc);
@@ -196,10 +205,12 @@ private:
 	MSSndCard *mCurrentCaptureCard = nullptr;
 	MSSndCard *mCurrentPlaybackCard = nullptr;
 	belle_sip_source_t *mMediaLostCheckTimer = nullptr;
+	bool isOfferer = false;
 	bool mMicMuted = false;
 	bool mSpeakerMuted = false;
 	bool mRecordActive = false;
 	bool mStartZrtpLater = false;
+	bool mRestartStreamRequired = false;	// Set to true if the stream need to stop on render().
 	static constexpr const int ecStateMaxLen = 1048576; /* 1Mo */
 	static constexpr const char * ecStateStore = ".linphone.ecstate";
 };
@@ -248,15 +259,16 @@ public:
 	virtual void stop() override;
 	virtual void finish() override;
 	virtual void tryEarlyMediaForking(const OfferAnswerContext &ctx) override;
-	
+	virtual void initZrtp() override;
+	virtual void startZrtp() override;
+
 	virtual MediaStream *getMediaStream()const override;
 	virtual VideoStream *getVideoStream()const override;
 	virtual MSWebCam *getVideoDevice()const override;
-	
-	
+
 	void oglRender();
 	MSWebCam * getVideoDevice(CallSession::State targetState)const;
-	
+
 	virtual ~MS2VideoStream();
 protected:
 	AudioStream *getPeerAudioStream();
@@ -270,7 +282,6 @@ private:
 	static void sVideoStreamEventCb (void *userData, const MSFilter *f, const unsigned int eventId, const void *args);
 	void cameraNotWorkingCb (const char *cameraName);
 	static void sCameraNotWorkingCb (void *userData, const MSWebCam *oldWebcam);
-	void activateZrtp();
 	MS2VideoMixer *getVideoMixer();
 	VideoStream *mStream = nullptr;
 	struct _MSVideoEndpoint *mConferenceEndpoint = nullptr;
@@ -287,7 +298,10 @@ public:
 	virtual void render(const OfferAnswerContext &ctx, CallSession::State targetState) override;
 	virtual void stop() override;
 	virtual void finish() override;
+	virtual void initZrtp() override;
+	virtual void startZrtp() override;
 	virtual ~MS2RTTStream();
+
 private:
 	void realTimeTextCharacterReceived(MSFilter *f, unsigned int id, void *arg);
 	static void sRealTimeTextCharacterReceived(void *userData, MSFilter *f, unsigned int id, void *arg);

@@ -93,6 +93,7 @@ typedef LinphoneCoreCbsCallEncryptionChangedCb LinphoneCoreCallEncryptionChanged
  * @param proxy_config the #LinphoneProxyConfig which state has changed @notnil
  * @param state the current #LinphoneRegistrationState
  * @param message a non NULL informational message about the state @notnil
+ * @deprecated 06/04/2020 Use #LinphoneCoreCbsAccountRegistrationStateChangedCb instead
  * @ingroup Proxies
  */
 typedef void (*LinphoneCoreCbsRegistrationStateChangedCb)(LinphoneCore *core, LinphoneProxyConfig *proxy_config, LinphoneRegistrationState state, const char *message);
@@ -496,6 +497,15 @@ typedef void (*LinphoneCoreCbsAudioDeviceChangedCb)(LinphoneCore *core, Linphone
  * @param core #LinphoneCore object @notnil
  */
 typedef void (*LinphoneCoreCbsAudioDevicesListUpdatedCb)(LinphoneCore *core);
+
+/**
+ * Callback notifying that a #LinphoneAccount has its registration state changed.
+ * @param core The #LinphoneCore object. @notnil
+ * @param account The #LinphoneAccount object which has its registration changed. @notnil
+ * @param state The new state for this account.
+ * @param message a non NULL informational message about the state @notnil
+ */
+typedef void (*LinphoneCoreCbsAccountRegistrationStateChangedCb)(LinphoneCore *core, LinphoneAccount *account, LinphoneRegistrationState state, const char *message);
 
 /**
  * @}

@@ -20,7 +20,23 @@
 #
 ############################################################################
 
-set(OTHER_LIBS_FOR_TESTER bctoolbox bctoolbox-tester ortp mediastreamer ${BELLESIP_TARGETNAME} belr ${XML2_LIBRARIES} ${XSD_LIBRARIES})
+set(OTHER_LIBS_FOR_TESTER
+	bctoolbox
+	bctoolbox-tester
+	ortp
+	mediastreamer
+	${BELLESIP_TARGETNAME}
+	belr
+	${XML2_LIBRARIES} ${XSD_LIBRARIES}
+)
+
+if (ENABLE_FLEXIAPI)
+	if (XCODE)
+		list(APPEND OTHER_LIBS_FOR_TESTER jsoncpp_static)
+	else()
+		list(APPEND OTHER_LIBS_FOR_TESTER jsoncpp_object)
+	endif()
+endif()
 
 if(INTL_FOUND)
 	list(APPEND OTHER_LIBS_FOR_TESTER ${INTL_LIBRARIES})
@@ -43,6 +59,7 @@ endif()
 
 set(SOUND_FILES
 	sounds/ahbahouaismaisbon.wav
+	sounds/continuous_48000_stereo.wav
 	sounds/hello44100.wav
 	sounds/hello8000.mkv
 	sounds/hello8000_mkv_ref.wav
@@ -84,6 +101,7 @@ set(CERTIFICATE_CLIENT_FILES
 	certificates/client/cert3.pem
 	certificates/client/key3.pem
 	certificates/client/cert2-signed-by-other-ca.pem
+	certificates/client/key2-signed-by-other-ca.pem
 	certificates/client/user1_cert.pem
 	certificates/client/user1_key.pem
 	certificates/client/user1_multiple_aliases_cert.pem
@@ -107,6 +125,7 @@ set(DB_FILES
 
 set(RC_FILES
 	rcfiles/account_creator_rc
+	rcfiles/account_creator_flexiapi_rc
 	rcfiles/assistant_create.rc
 	rcfiles/carddav_rc
 	rcfiles/claire_rc
@@ -138,7 +157,7 @@ set(RC_FILES
 	rcfiles/marie_quality_reporting_rc
 	rcfiles/marie_rc
 	rcfiles/marie_rtp_port_range_rc
-	rcfiles/marie_os_defined_rtp_ports_rc 
+	rcfiles/marie_os_defined_rtp_ports_rc
 	rcfiles/marie_rc_rtcp_xr
 	rcfiles/marie_remote_404_rc
 	rcfiles/marie_remote_default_values_rc
@@ -160,6 +179,7 @@ set(RC_FILES
 	rcfiles/marie_zrtp_ecdh255_rc
 	rcfiles/marie_zrtp_ecdh448_rc
 	rcfiles/marie_zrtp_srtpsuite_aes256_rc
+	rcfiles/michelle_rc
 	rcfiles/michelle_rc_udp
 	rcfiles/multi_account_rc
 	rcfiles/pauline_alt_rc
@@ -170,7 +190,7 @@ set(RC_FILES
 	rcfiles/pauline_nat64_rc
 	rcfiles/pauline_rc
 	rcfiles/pauline_rtp_port_range_rc
-	rcfiles/pauline_os_defined_rtp_ports_rc 
+	rcfiles/pauline_os_defined_rtp_ports_rc
 	rcfiles/pauline_rc_rtcp_xr
 	rcfiles/pauline_sips_rc
 	rcfiles/pauline_tcp_rc
@@ -190,7 +210,7 @@ set(RC_FILES
 	rcfiles/marie_bodyless_rc
 	rcfiles/groupchat_rc
 	rcfiles/groupchat_lime_x3dh_rc
-	rcfiles/arthur_rc 
+	rcfiles/arthur_rc
 )
 
 set(IMAGE_FILES
@@ -223,33 +243,32 @@ set(IOS_RESOURCES_FILES
 )
 
 set(SOURCE_FILES_C
-	account_creator_tester.c
+	account_tester.c
+	account_creator_local_tester.c
+	account_creator_xmlrpc_tester.c
 	accountmanager.c
 	audio_bypass_tester.c
 	audio_routes_tester.c
 	audio_video_conference_tester.c
-	call_ice_tester.c
 	call_multicast_tester.c
 	call_multi_tester.c
 	call_push_incoming_tester.c
 	call_recovery_tester.c
 	call_secure_tester.c
 	call_single_tester.c
-	call_video_tester.c
 	call_with_rtp_bundle_tester.c
 	complex_sip_case_tester.c
 	dtmf_tester.c
 	eventapi_tester.c
 	external_domain_tester.c
 	flexisip_tester.c
-        group_chat_tester.c
+	group_chat_tester.c
 	group_chat_ephemeral_tester.c
 	group_chat_secure_tester.c
 	group_chat_tester.c
 	liblinphone_tester.c
 	log_collection_tester.c
 	message_tester.c
-	offeranswer_tester.c
 	player_tester.c
 	presence_server_tester.c
 	presence_tester.c
@@ -261,30 +280,48 @@ set(SOURCE_FILES_C
 	setup_tester.c
 	shared_core_tester.c
 	stun_tester.c
-	tester.c
 	tunnel_tester.c
 	vcard_tester.c
 	video_quality_tester.c
-	shared_core_tester.c
 	local_conference_tester.cpp
 	video_tester.c
 )
+
 if(ENABLE_LIME_X3DH)
-    list(APPEND SOURCE_FILES_C group_chat_secure_tester.c)
+	list(APPEND SOURCE_FILES_C group_chat_secure_tester.c)
+endif()
+
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+	list(APPEND SOURCE_FILES_C tester.c)# it will be added on RUNTIME_COMPONENT_SOURCES
 endif()
 
 set(SOURCE_FILES_CXX
 	tester.cpp
-	audio_quality_tester.cpp
+	audio-quality-tester.cpp
 	clonable-object-tester.cpp
+	call_video_tester.cpp
+	call_ice_tester.cpp
+	capability_negotiation_tester.cpp
+	ice_capability_negotiation_tester.cpp
+	srtp_capability_negotiation_tester.cpp
+	zrtp_capability_negotiation_tester.cpp
+	dtls_srtp_capability_negotiation_tester.cpp
 	contents-tester.cpp
 	cpim-tester.cpp
 	multipart-tester.cpp
+	offeranswer_tester.cpp
+	shared_tester_functions.cpp
 	property-container-tester.cpp
 	utils-tester.cpp
 	lime-user-authentication-tester.cpp
-	vfs_encryption-tester.cpp
+	vfs-encryption-tester.cpp
+	potential_configuration_tester.cpp
 )
+
+if(ENABLE_FLEXIAPI)
+	list(APPEND SOURCE_FILES_C account_creator_flexiapi_tester.c)
+	list(APPEND SOURCE_FILES_CXX flexiapiclient-tester.cpp)
+endif()
 
 if(ENABLE_ADVANCED_IM)
 	list(APPEND SOURCE_FILES_CXX conference-event-tester.cpp)
@@ -296,6 +333,8 @@ endif()
 
 set(HEADER_FILES
 	audio_quality_tester.h
+	shared_tester_functions.h
+	capability_negotiation_tester.h
 	liblinphone_tester.h
 	tools/private-access.h
 	tools/tester.h
@@ -305,6 +344,8 @@ set(SOURCE_FILES_OBJC )
 if(APPLE)
 	if (IOS)
 		list(APPEND SOURCE_FILES_OBJC liblinphone_tester_ios.m)
+	else()
+		list(APPEND SOURCE_FILES_OBJC ../src/utils/main-loop-integration-macos.m)#Override main(), instantiate Main Loop and call apple_main()
 	endif()
 endif()
 
@@ -315,11 +356,27 @@ set(GROUP_CHAT_BENCHMARK_SOURCE_C
 	group_chat_benchmark.c
 )
 
+set(GROUP_CHAT_BENCHMARK_SOURCE_CXX
+	shared_tester_functions.cpp
+)
+
 set(GROUP_CHAT_BENCHMARK_HEADERS
+	shared_tester_functions.h
 	liblinphone_tester.h
 	tools/tester.h
 )
 
+set(LINPHONETESTER_RESOURCES
+	"${CMAKE_CURRENT_SOURCE_DIR}/certificates"
+	"${CMAKE_CURRENT_SOURCE_DIR}/db"
+	"${CMAKE_CURRENT_SOURCE_DIR}/images"
+	"${CMAKE_CURRENT_SOURCE_DIR}/rcfiles"
+	"${CMAKE_CURRENT_SOURCE_DIR}/sipp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/sounds"
+	"${CMAKE_CURRENT_SOURCE_DIR}/vcards"
+	"${CMAKE_CURRENT_SOURCE_DIR}/tester_hosts"
+	"${CMAKE_CURRENT_SOURCE_DIR}/local_tester_hosts"
+)
 
 # TODO: Remove me later!
 list(REMOVE_ITEM STRICT_OPTIONS_CPP "-Wconversion" "-Werror=conversion" "-Wcast-align" "-Werror=cast-align")
@@ -332,6 +389,7 @@ bc_apply_compile_flags(SOURCE_FILES_CXX STRICT_OPTIONS_CPP STRICT_OPTIONS_CXX)
 bc_apply_compile_flags(SOURCE_FILES_OBJC STRICT_OPTIONS_CPP STRICT_OPTIONS_OBJC)
 
 bc_apply_compile_flags(GROUP_CHAT_BENCHMARK_SOURCE_C STRICT_OPTIONS_CPP STRICT_OPTIONS_C)
+bc_apply_compile_flags(GROUP_CHAT_BENCHMARK_SOURCE_CXX STRICT_OPTIONS_CPP STRICT_OPTIONS_CXX)
 
 add_definitions("-DLINPHONE_TESTER")
 
@@ -355,7 +413,7 @@ endif()
 
 # on mobile platforms, we compile the tester as a library so that we can link with it directly from native applications
 if(ANDROID OR IOS)
-	add_library(linphonetester SHARED ${HEADER_FILES} ${SOURCE_FILES_C} ${SOURCE_FILES_CXX})
+	add_library(linphonetester SHARED ${HEADER_FILES} ${SOURCE_FILES_C} ${SOURCE_FILES_CXX} ${LINPHONETESTER_RESOURCES})
 	target_include_directories(linphonetester PRIVATE ${LINPHONE_INCLUDE_DIRS} ${LIBXSD_INCLUDE_DIRS} ${SOCI_INCLUDE_DIRS})
 	target_link_libraries(linphonetester ${LINPHONE_LIBS_FOR_TOOLS} ${OTHER_LIBS_FOR_TESTER})
 	#TODO: replace by if(APPLE) when we want to make apple framework on linphone-desktop too
@@ -365,10 +423,12 @@ if(ANDROID OR IOS)
 		else()
 			set(MIN_OS ${CMAKE_OSX_DEPLOYMENT_TARGET})
 		endif()
+
 		set_target_properties(linphonetester PROPERTIES
 			FRAMEWORK TRUE
 			MACOSX_FRAMEWORK_IDENTIFIER com.belledonne-communications.linphonetester
 			MACOSX_FRAMEWORK_INFO_PLIST "${CMAKE_SOURCE_DIR}/build/osx/Info.plist.in"
+			RESOURCE "${LINPHONETESTER_RESOURCES}"
 			PUBLIC_HEADER "${HEADER_FILES}"
 		)
 	endif()
@@ -391,6 +451,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
 	set(RUNTIME_COMPONENT_SOURCES
 		liblinphone_tester_windows.cpp
 		liblinphone_tester_windows.h
+		tester.c
 	)
 	add_library(linphone_tester_runtime MODULE ${RUNTIME_COMPONENT_SOURCES})
 	target_compile_options(linphone_tester_runtime PRIVATE "/wd4996")
@@ -414,31 +475,33 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
 	endif()
 endif()
 
-if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-	if(NOT IOS)
+if(NOT ANDROID)
+	if(NOT IOS AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
 		add_executable(liblinphone_tester ${HEADER_FILES} ${SOURCE_FILES_C} ${SOURCE_FILES_CXX} ${SOURCE_FILES_OBJC})
 		set_target_properties(liblinphone_tester PROPERTIES LINK_FLAGS "${LINPHONE_LDFLAGS}")
 		set_target_properties(liblinphone_tester PROPERTIES LINKER_LANGUAGE CXX)
 		set_target_properties(liblinphone_tester PROPERTIES C_STANDARD 99)
 		target_include_directories(liblinphone_tester PRIVATE ${LINPHONE_INCLUDE_DIRS} ${SOCI_INCLUDE_DIRS})
 		target_link_libraries(liblinphone_tester ${LINPHONE_LIBS_FOR_TOOLS} ${OTHER_LIBS_FOR_TESTER})
-                if(MSVC)
-                        if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-                                install(FILES $<TARGET_PDB_FILE:liblinphone_tester>
-                                        DESTINATION ${CMAKE_INSTALL_BINDIR}
-                                        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-                                )
-                        endif()
-                endif()
-
+		if(MSVC)
+				if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+						install(FILES $<TARGET_PDB_FILE:liblinphone_tester>
+								DESTINATION ${CMAKE_INSTALL_BINDIR}
+								PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+						)
+				endif()
+		endif()
 		install(TARGETS liblinphone_tester
 			RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 		)
+		if(APPLE)
+			configure_file("${CMAKE_SOURCE_DIR}/build/osx/Info.plist.in" "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/Info.plist")
+		endif()	
 
-		add_executable(groupchat_benchmark ${GROUP_CHAT_BENCHMARK_HEADERS} ${GROUP_CHAT_BENCHMARK_SOURCE_C})
+		add_executable(groupchat_benchmark ${GROUP_CHAT_BENCHMARK_HEADERS} ${GROUP_CHAT_BENCHMARK_SOURCE_C} ${GROUP_CHAT_BENCHMARK_SOURCE_CXX})
 		set_target_properties(groupchat_benchmark PROPERTIES LINK_FLAGS "${LINPHONE_LDFLAGS}")
 		set_target_properties(groupchat_benchmark PROPERTIES LINKER_LANGUAGE CXX)
 		set_target_properties(groupchat_benchmark PROPERTIES C_STANDARD 99)

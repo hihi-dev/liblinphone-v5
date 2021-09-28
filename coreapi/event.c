@@ -140,7 +140,7 @@ static LinphoneEvent * linphone_event_new_base(LinphoneCore *lc, LinphoneSubscri
 }
 
 LinphoneEvent *linphone_event_new(LinphoneCore *lc, LinphoneSubscriptionDir dir, const char *name, int expires){
-	LinphoneEvent *lev=linphone_event_new_base(lc, dir, name, new SalSubscribeOp(lc->sal));
+	LinphoneEvent *lev=linphone_event_new_base(lc, dir, name, new SalSubscribeOp(lc->sal.get()));
 	lev->expires=expires;
 	return lev;
 }
@@ -345,17 +345,17 @@ LinphoneStatus linphone_event_notify(LinphoneEvent *lev, const LinphoneContent *
 	return subscribeOp->notify(body_handler);
 }
 
-LinphoneEvent *_linphone_core_create_publish(LinphoneCore *core, LinphoneProxyConfig *cfg, const LinphoneAddress *resource, const char *event, int expires){
+LinphoneEvent *_linphone_core_create_publish(LinphoneCore *core, LinphoneAccount *account, const LinphoneAddress *resource, const char *event, int expires){
 	LinphoneCore *lc = core;
 	LinphoneEvent *lev;
 
-	if (!resource && cfg)
-		resource = linphone_proxy_config_get_identity_address(cfg);
+	if (!resource && account)
+		resource = linphone_account_params_get_identity_address(linphone_account_get_params(account));
 
-	lev = linphone_event_new_with_op(lc, new SalPublishOp(lc->sal), LinphoneSubscriptionInvalidDir, event);
+	lev = linphone_event_new_with_op(lc, new SalPublishOp(lc->sal.get()), LinphoneSubscriptionInvalidDir, event);
 	lev->expires = expires;
-	if (!cfg) cfg = linphone_core_lookup_known_proxy(lc, resource);
-	linphone_configure_op_with_proxy(lc,lev->op,resource,NULL, !!linphone_config_get_int(lc->config,"sip","publish_msg_with_contact",0),cfg);
+	if (!account) account = linphone_core_lookup_known_account(lc, resource);
+	linphone_configure_op_with_account(lc,lev->op,resource,NULL, !!linphone_config_get_int(lc->config,"sip","publish_msg_with_contact",0),account);
 	lev->op->setManualRefresherMode(!linphone_config_get_int(lc->config,"sip","refresh_generic_publish",1));
 	return lev;
 }
@@ -595,7 +595,7 @@ void _linphone_event_notify_notify_response(LinphoneEvent *lev) {
 
 	bctbx_list_t *callbacksCopy = bctbx_list_copy(linphone_event_get_callbacks_list(lev));
 	for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) {
-		linphone_event_set_current_callbacks(lev, reinterpret_cast<LinphoneEventCbs *>(bctbx_list_get_data(it)));
+		linphone_event_set_current_callbacks(lev, static_cast<LinphoneEventCbs *>(bctbx_list_get_data(it)));
 		LinphoneEventCbsNotifyResponseCb callback = linphone_event_cbs_get_notify_response(linphone_event_get_current_callbacks(lev));
 		if (callback) {
 			callback(lev);

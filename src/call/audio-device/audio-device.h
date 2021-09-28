@@ -39,12 +39,13 @@ public:
         AuxLine = LinphoneAudioDeviceTypeAuxLine,
         GenericUsb = LinphoneAudioDeviceTypeGenericUsb,
         Headset = LinphoneAudioDeviceTypeHeadset,
-        Headphones
+        Headphones = LinphoneAudioDeviceTypeHeadphones
 	};
 
     enum Capabilities {
         Record = LinphoneAudioDeviceCapabilityRecord,
-        Play = LinphoneAudioDeviceCapabilityPlay
+        Play = LinphoneAudioDeviceCapabilityPlay,
+        All = Record | Play
     };
 
     AudioDevice(MSSndCard *soundCard);
@@ -63,6 +64,9 @@ public:
         str << this->toString();
         return str;
     }
+
+    bool operator== (const AudioDevice &device) const;
+    bool operator!= (const AudioDevice &device) const;
 
 private:
     MSSndCard *soundCard;

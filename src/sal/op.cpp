@@ -48,8 +48,6 @@ SalOp::~SalOp () {
 		belle_sip_object_unref(mSdpAnswer);
 	if (mRefresher)
 		belle_sip_object_unref(mRefresher);
-	if (mResult)
-		sal_media_description_unref(mResult);
 	if(mReplaces)
 		belle_sip_object_unref(mReplaces);
 	if(mReferredBy)
@@ -198,7 +196,8 @@ int SalOp::refresh () {
 
 void SalOp::killDialog () {
 	lInfo() << "op [" << this << "]: force kill of dialog [" << mDialog << "]";
-	belle_sip_dialog_delete(mDialog);
+	if (mDialog)
+		belle_sip_dialog_delete(mDialog);
 }
 
 void SalOp::release () {

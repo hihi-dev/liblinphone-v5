@@ -17,7 +17,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "linphone/core.h"
 #include "liblinphone_tester.h"
 #include "tester_utils.h"
@@ -37,6 +36,7 @@ static const char* liblinphone_helper =
 		"\t\t\t--domain <test sip domain>	(deprecated)\n"
 		"\t\t\t--auth-domain <test auth domain>	(deprecated)\n"
 		"\t\t\t--dns-hosts </etc/hosts -like file to used to override DNS names or 'none' for no overriding (default: tester_hosts)> (deprecated)\n"
+		"\t\t\t--max-failed  max number of failed tests until program exit with return code 1. Current default is 2"
 		;
 
 typedef struct _MireData{
@@ -53,23 +53,23 @@ typedef struct _MireData{
  * Returns the list of ip address for the supplied host name using libc's dns resolver.
  * They are returned as a bctx_list_t of char*, to be freed with bctbx_list_free_with_data(list, bctbx_free).
  */
-static bctbx_list_t *liblinphone_tester_resolve_name_to_ip_address(const char *name){
+bctbx_list_t *liblinphone_tester_resolve_name_to_ip_address(const char *name){
 	struct addrinfo *ai,*ai_it;
 	struct addrinfo hints;
 	bctbx_list_t *ret = NULL;
 	int err;
-	
+
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_DGRAM;
-	
+
 	err = getaddrinfo(name, NULL, &hints, &ai);
 	if (err != 0){
 		return NULL;
 	}
 	for(ai_it = ai; ai_it != NULL ; ai_it = ai_it->ai_next){
 		char ipaddress[NI_MAXHOST] = { 0 };
-		err = getnameinfo(ai_it->ai_addr, ai_it->ai_addrlen, ipaddress, sizeof(ipaddress), NULL, 0, NI_NUMERICHOST | NI_NUMERICSERV);
+		err = getnameinfo(ai_it->ai_addr, (socklen_t)ai_it->ai_addrlen, ipaddress, sizeof(ipaddress), NULL, 0, NI_NUMERICHOST | NI_NUMERICSERV);
 		if (err != 0){
 			ms_error("liblinphone_tester_resolve_name_to_ip_address(): getnameinfo() error : %s", gai_strerror(err));
 			continue;
@@ -80,7 +80,7 @@ static bctbx_list_t *liblinphone_tester_resolve_name_to_ip_address(const char *n
 	return ret;
 }
 
-static bctbx_list_t * remove_v6_addr(bctbx_list_t *l){
+bctbx_list_t * liblinphone_tester_remove_v6_addr(bctbx_list_t *l){
 	bctbx_list_t *it;
 	for (it = l ; it != NULL; ){
 		char *ip = (char*)l->data;
@@ -96,6 +96,7 @@ static bctbx_list_t * remove_v6_addr(bctbx_list_t *l){
 static int liblinphone_tester_start(int argc, char *argv[]) {
 	int i;
 	int ret;
+	int liblinphone_max_failed_tests_threshold = 2;/* Please adjust this threshold as long as the full tester becomes more and more reliable. Also update liblinphone_helper value for documentation*/
 
 #ifdef __linux__
 	/* Hack to tell mediastreamer2 alsa plugin to not detect direct driver interface ('sysdefault' card), because
@@ -139,6 +140,9 @@ static int liblinphone_tester_start(int argc, char *argv[]) {
 			liblinphonetester_show_account_manager_logs=TRUE;
 		} else if (strcmp(argv[i],"--no-account-creator")==0){
 			liblinphonetester_no_account_creator=TRUE;
+		} else if (strcmp(argv[i], "--max-failed")==0) {
+			CHECK_ARG("--max-failed", ++i, argc);
+			liblinphone_max_failed_tests_threshold=atoi(argv[i]);
 		} else {
 			int bret = bc_tester_parse_args(argc, argv, i);
 			if (bret>0) {
@@ -151,11 +155,13 @@ static int liblinphone_tester_start(int argc, char *argv[]) {
 		}
 	}
 
+	bc_tester_set_max_failed_tests_threshold(liblinphone_max_failed_tests_threshold);
+	
 	if (flexisip_tester_dns_server != NULL){
 		/*
 		 * We have to remove ipv6 addresses because flexisip-tester internally uses a dnsmasq configuration that does not listen on ipv6.
 		 */
-		flexisip_tester_dns_ip_addresses = remove_v6_addr(liblinphone_tester_resolve_name_to_ip_address(flexisip_tester_dns_server));
+		flexisip_tester_dns_ip_addresses = liblinphone_tester_remove_v6_addr(liblinphone_tester_resolve_name_to_ip_address(flexisip_tester_dns_server));
 		if (flexisip_tester_dns_ip_addresses == NULL){
 			ms_error("Cannot resolve the flexisip-tester's dns server name '%s'.", flexisip_tester_dns_server);
 			return -1;
@@ -400,11 +406,12 @@ void liblinphone_tester_add_suites() {
 	bc_tester_add_suite(&register_test_suite);
 #ifdef HAVE_ADVANCED_IM
 	bc_tester_add_suite(&group_chat_test_suite);
+	bc_tester_add_suite(&group_chat2_test_suite);
 #ifdef HAVE_LIME_X3DH
 	bc_tester_add_suite(&secure_group_chat_test_suite);
 	bc_tester_add_suite(&lime_server_auth_test_suite);
-#endif
 	bc_tester_add_suite(&ephemeral_group_chat_test_suite);
+#endif
 	bc_tester_add_suite(&local_conference_test_suite);
 #endif
 	bc_tester_add_suite(&tunnel_test_suite);
@@ -414,8 +421,14 @@ void liblinphone_tester_add_suites() {
 	bc_tester_add_suite(&call_recovery_test_suite);
 	bc_tester_add_suite(&call_with_ice_test_suite);
 	bc_tester_add_suite(&call_secure_test_suite);
+	bc_tester_add_suite(&capability_negotiation_test_suite);
+	bc_tester_add_suite(&srtp_capability_negotiation_test_suite);
+	bc_tester_add_suite(&zrtp_capability_negotiation_test_suite);
+	bc_tester_add_suite(&dtls_srtp_capability_negotiation_test_suite);
+	bc_tester_add_suite(&ice_capability_negotiation_test_suite);
 #ifdef VIDEO_ENABLED
 	bc_tester_add_suite(&call_video_test_suite);
+	bc_tester_add_suite(&call_video_msogl_test_suite);// Conditionals are defined in suite
 #endif // ifdef VIDEO_ENABLED
 	bc_tester_add_suite(&audio_bypass_suite);
 	bc_tester_add_suite(&audio_routes_test_suite);
@@ -426,7 +439,12 @@ void liblinphone_tester_add_suites() {
 	bc_tester_add_suite(&session_timers_test_suite);
 	bc_tester_add_suite(&presence_test_suite);
 	bc_tester_add_suite(&presence_server_test_suite);
-	bc_tester_add_suite(&account_creator_test_suite);
+	bc_tester_add_suite(&account_creator_xmlrpc_test_suite);
+	bc_tester_add_suite(&account_creator_local_test_suite);
+#ifdef HAVE_FLEXIAPI
+	bc_tester_add_suite(&flexiapiclient_suite);
+	bc_tester_add_suite(&account_creator_flexiapi_test_suite);
+#endif
 	bc_tester_add_suite(&stun_test_suite);
 	bc_tester_add_suite(&event_test_suite);
 #ifdef HAVE_ADVANCED_IM
@@ -452,6 +470,7 @@ void liblinphone_tester_add_suites() {
 #endif // ifdef VIDEO_ENABLED
 	bc_tester_add_suite(&multicast_call_test_suite);
 	bc_tester_add_suite(&proxy_config_test_suite);
+	bc_tester_add_suite(&account_test_suite);
 #if HAVE_SIPP
 	bc_tester_add_suite(&complex_sip_call_test_suite);
 #endif
@@ -463,6 +482,8 @@ void liblinphone_tester_add_suites() {
 	bc_tester_add_suite(&shared_core_test_suite);
 	bc_tester_add_suite(&vfs_encryption_test_suite);
 	bc_tester_add_suite(&external_domain_test_suite);
+	bc_tester_add_suite(&potential_configuration_graph_test_suite);
+
 }
 
 void liblinphone_tester_init(void(*ftester_printf)(int level, const char *fmt, va_list args)) {
@@ -480,7 +501,9 @@ void liblinphone_tester_init(void(*ftester_printf)(int level, const char *fmt, v
 	bc_tester_set_logfile_func(logfile_arg_func);
 	bc_tester_init(ftester_printf, ORTP_MESSAGE, ORTP_ERROR, "rcfiles");
 	liblinphone_tester_add_suites();
-	bc_tester_set_max_parallel_suites(10); /* empiricly defined as sustainable for mac book pro with 4 hyperthreaded cores.*/
+	bc_tester_set_max_parallel_suites(20); /* empiricaly defined as sustainable for mac book pro with 4 hyperthreaded cores.*/
+	bc_tester_set_global_timeout( 15*60); /* 15 mn max */
+
 }
 
 int liblinphone_tester_set_log_file(const char *filename) {
@@ -508,14 +531,15 @@ void liblinphone_tester_simulate_mire_defunct(MSFilter * filter, bool_t defunct)
 	}
 }
 
-
 #if !TARGET_OS_IPHONE && !(defined(LINPHONE_WINDOWS_PHONE) || defined(LINPHONE_WINDOWS_UNIVERSAL))
-
+#if defined(__APPLE__)
+int apple_main (int argc, char *argv[])
+#else
 int main (int argc, char *argv[])
+#endif
 {
 	int ret = liblinphone_tester_start(argc, argv);
 	liblinphone_tester_stop();
 	return ret;
 }
-
 #endif

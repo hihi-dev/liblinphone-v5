@@ -28,6 +28,7 @@
 #include <CoreLocation/CoreLocation.h>
 #include <notify_keys.h>
 #include <belr/grammarbuilder.h>
+#include <AVFoundation/AVAudioSession.h>
 
 #include "linphone/utils/general.h"
 #include "linphone/utils/utils.h"
@@ -51,7 +52,7 @@ LINPHONE_BEGIN_NAMESPACE
 class IosPlatformHelpers : public GenericPlatformHelpers {
 public:
 	IosPlatformHelpers (std::shared_ptr<LinphonePrivate::Core> core, void *systemContext);
-	~IosPlatformHelpers (){
+	~IosPlatformHelpers () {
 		[mAppDelegate dealloc];
 	}
 
@@ -99,6 +100,10 @@ public:
 	void networkChangeCallback(void);
 	void onNetworkChanged(bool reachable, bool force);
 
+	void didRegisterForRemotePush(void *token) override;
+	void didRegisterForRemotePushWithStringifiedToken(const char *token) override;
+	void enableAutoIterate (bool autoIterateEnabled) override;
+
 private:
 	string toUTF8String(CFStringRef str);
 	void kickOffConnectivity();
@@ -115,6 +120,7 @@ private:
 	SCNetworkReachabilityFlags mCurrentFlags = 0;
 	bool mNetworkMonitoringEnabled = false;
 	static const string Framework;
+
 	IosAppDelegate *mAppDelegate = NULL; /* auto didEnterBackground/didEnterForeground and other callbacks */
 	bool mStart = false; /* generic platformhelper's funcs only work when mStart is true */
 	bool mUseAppDelgate = false; /* app delegate is only used by main core*/
@@ -128,7 +134,7 @@ static void sNetworkChangeCallback(CFNotificationCenterRef center, void *observe
 const string IosPlatformHelpers::Framework = "org.linphone.linphone";
 
 IosPlatformHelpers::IosPlatformHelpers (std::shared_ptr<LinphonePrivate::Core> core, void *systemContext) : GenericPlatformHelpers(core) {
-	mUseAppDelgate = core->getCCore()->is_main_core && !linphone_config_get_int(core->getCCore()->config, "tester", "test_env", false);
+	mUseAppDelgate = core->getCCore()->is_main_core;
 	if (mUseAppDelgate) {
 		mAppDelegate = [[IosAppDelegate alloc] initWithCore:core];
 	}
@@ -140,6 +146,7 @@ void IosPlatformHelpers::start (std::shared_ptr<LinphonePrivate::Core> core) {
 	mCpuLockTaskId = 0;
 	mNetworkReachable = 0; // wait until monitor to give a status;
 	mSharedCoreHelpers = createIosSharedCoreHelpers(core);
+	
 
 	string cpimPath = getResourceDirPath(Framework, "cpim_grammar");
 	if (!cpimPath.empty())
@@ -161,6 +168,12 @@ void IosPlatformHelpers::start (std::shared_ptr<LinphonePrivate::Core> core) {
 		ms_message("IosPlatformHelpers did not find vcard grammar resource directory...");
 #endif
 
+	string sdpPath = getResourceDirPath("org.linphone.belle-sip", "sdp_grammar");
+	if (!sdpPath.empty())
+		belr::GrammarLoader::get().addPath(sdpPath);
+	else
+		ms_error("IosPlatformHelpers did not find sdp grammar resource directory...");
+	
 	ms_message("IosPlatformHelpers is fully started");
 	mStart = true;
 	[mAppDelegate onStopAsyncEnd:false];
@@ -169,6 +182,35 @@ void IosPlatformHelpers::start (std::shared_ptr<LinphonePrivate::Core> core) {
 void IosPlatformHelpers::stop () {
 	mStart = false;
 	ms_message("IosPlatformHelpers is fully stopped");
+}
+
+void IosPlatformHelpers::didRegisterForRemotePush(void *token) {
+	[mAppDelegate didRegisterForRemotePush:(NSData *)token];
+}
+
+void IosPlatformHelpers::didRegisterForRemotePushWithStringifiedToken(const char *tokenStr) {
+	[mAppDelegate didRegisterForRemotePushWithStringifiedToken:tokenStr];
+}
+
+void IosPlatformHelpers::enableAutoIterate(bool autoIterateEnabled) {
+	if (mUseAppDelgate && mStart) {
+		if (autoIterateEnabled) {
+			if (mIterateTimer && mIterateTimer.valid) {
+				ms_message("[IosPlatformHelpers] core.iterate() is already scheduled");
+				return;
+			}
+			mIterateTimer = [NSTimer timerWithTimeInterval:0.02 target:mAppDelegate selector:@selector(iterate) userInfo:nil repeats:YES];
+			// NSTimer runs only in the main thread correctly. Since there may not be a current thread loop.
+			[[NSRunLoop mainRunLoop] addTimer:mIterateTimer forMode:NSDefaultRunLoopMode];
+			ms_message("[IosPlatformHelpers] Call to core.iterate() scheduled every 20ms");
+		} else {
+			if (mIterateTimer) {
+				[mIterateTimer invalidate];
+				mIterateTimer = NULL;
+				ms_message("[IosPlatformHelpers] Auto core.iterate() stopped");
+			}
+		}
+	}
 }
 
 //Safely get an UTF-8 string from the given CFStringRef
@@ -289,16 +331,11 @@ void IosPlatformHelpers::onLinphoneCoreStart(bool monitoringEnabled) {
 	if (monitoringEnabled) {
 		startNetworkMonitoring();
 	}
-
+	if (mUseAppDelgate && linphone_core_is_push_notification_enabled(getCore()->getCCore())) {
+		[mAppDelegate registerForPush];
+	}
 	if (mUseAppDelgate && linphone_core_is_auto_iterate_enabled(getCore()->getCCore())) {
-		if (mIterateTimer && mIterateTimer.valid) {
-			ms_message("[IosPlatformHelpers] core.iterate() is already scheduled");
-			return;
-		}
-		mIterateTimer = [NSTimer timerWithTimeInterval:0.02 target:mAppDelegate selector:@selector(iterate) userInfo:nil repeats:YES];
-		// NSTimer runs only in the main thread correctly. Since there may not be a current thread loop.
-		[[NSRunLoop mainRunLoop] addTimer:mIterateTimer forMode:NSDefaultRunLoopMode];
-		ms_message("[IosPlatformHelpers] Call to core.iterate() scheduled every 20ms");
+		enableAutoIterate(TRUE);
 	} else {
 		ms_warning("[IosPlatformHelpers] Auto core.iterate() isn't enabled, ensure you do it in your application!");
 	}
@@ -312,11 +349,7 @@ void IosPlatformHelpers::onLinphoneCoreStop() {
 	}
 
 	if (mUseAppDelgate && linphone_core_is_auto_iterate_enabled(getCore()->getCCore())) {
-		if (mIterateTimer) {
-			[mIterateTimer invalidate];
-			mIterateTimer = NULL;
-		}
-		ms_message("[IosPlatformHelpers] Auto core.iterate() stopped");
+		enableAutoIterate(FALSE);
 	}
 
 	// To avoid trigger callbacks of mHandler after linphone core stop
@@ -597,7 +630,7 @@ void IosPlatformHelpers::kickOffConnectivity() {
 			bool timeout_reached = FALSE;
 			int loop = 0;
 			CFWriteStreamRef writeStream;
-			CFStreamCreatePairWithSocketToHost(NULL, (CFStringRef) "192.168.0.200" /*"linphone.org"*/, 15000, nil,
+			CFStreamCreatePairWithSocketToHost(NULL, (CFStringRef) @"192.168.0.200" /*"linphone.org"*/, 15000, nil,
 							   &writeStream);
 			bool res = CFWriteStreamOpen(writeStream);
 			const char *buff = "hello";
@@ -627,8 +660,12 @@ void IosPlatformHelpers::kickOffConnectivity() {
 			if (status == kCFStreamStatusOpen) {
 				CFWriteStreamWrite(writeStream, (const UInt8 *)buff, (CFIndex) strlen(buff));
 			} else if (!timeout_reached) {
-				CFErrorRef error = CFWriteStreamCopyError(writeStream);
-				CFRelease(error);
+				CFErrorRef cfError = CFWriteStreamCopyError(writeStream);
+				if (cfError) {
+					NSError *error = (__bridge NSError *)cfError;
+					lError() << "CFStream error " << error.localizedDescription;
+					CFRelease(cfError);
+				}
 			} else if (timeout_reached) {
 				ms_message("CFStream timeout reached");
 			}
@@ -643,47 +680,47 @@ void IosPlatformHelpers::setWifiSSID(const string &ssid) {
 }
 
 string IosPlatformHelpers::getWifiSSID(void) {
-#if TARGET_IPHONE_SIMULATOR
-	return "Sim_err_SSID_NotSupported";
-#else
-	string ssid;
-	bool shallGetWifiInfo = true;
+	#if TARGET_IPHONE_SIMULATOR
+		return "Sim_err_SSID_NotSupported";
+	#else
+		string ssid;
+		bool shallGetWifiInfo = true;
 
-	if (@available(iOS 13.0, *)) {
-		//Starting from IOS13 we need to check for authorization to get wifi information.
-		//User permission is asked in the main app
-		CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
-		if (status != kCLAuthorizationStatusAuthorizedAlways &&
-		    status != kCLAuthorizationStatusAuthorizedWhenInUse) {
-			shallGetWifiInfo = false;
-			ms_warning("User has not given authorization to access Wifi information (Authorization: [%d])", (int) status);
-		}
-	}
-	if (shallGetWifiInfo) {
-		CFArrayRef ifaceNames = CNCopySupportedInterfaces();
-		if (ifaceNames) {
-			CFIndex	i;
-			for (i = 0; i < CFArrayGetCount(ifaceNames); ++i) {
-				CFStringRef iface = (CFStringRef) CFArrayGetValueAtIndex(ifaceNames, i);
-				CFDictionaryRef ifaceInfo = CNCopyCurrentNetworkInfo(iface);
-
-				if (ifaceInfo != NULL && CFDictionaryGetCount(ifaceInfo) > 0) {
-					CFStringRef ifaceSSID = (CFStringRef) CFDictionaryGetValue(ifaceInfo, kCNNetworkInfoKeySSID);
-					if (ifaceSSID != NULL) {
-						ssid = toUTF8String(ifaceSSID);
-						if (!ssid.empty()) {
-							CFRelease(ifaceInfo);
-							break;
-						}
-					}
-					CFRelease(ifaceInfo);
-				}
+		if (@available(iOS 13.0, *)) {
+			//Starting from IOS13 we need to check for authorization to get wifi information.
+			//User permission is asked in the main app
+			CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
+			if (status != kCLAuthorizationStatusAuthorizedAlways &&
+				status != kCLAuthorizationStatusAuthorizedWhenInUse) {
+				shallGetWifiInfo = false;
+				ms_warning("User has not given authorization to access Wifi information (Authorization: [%d])", (int) status);
 			}
 		}
-		CFRelease(ifaceNames);
-	}
-	return ssid;
-#endif
+		if (shallGetWifiInfo) {
+			CFArrayRef ifaceNames = CNCopySupportedInterfaces();
+			if (ifaceNames) {
+				CFIndex	i;
+				for (i = 0; i < CFArrayGetCount(ifaceNames); ++i) {
+					CFStringRef iface = (CFStringRef) CFArrayGetValueAtIndex(ifaceNames, i);
+					CFDictionaryRef ifaceInfo = CNCopyCurrentNetworkInfo(iface);
+
+					if (ifaceInfo != NULL && CFDictionaryGetCount(ifaceInfo) > 0) {
+						CFStringRef ifaceSSID = (CFStringRef) CFDictionaryGetValue(ifaceInfo, kCNNetworkInfoKeySSID);
+						if (ifaceSSID != NULL) {
+							ssid = toUTF8String(ifaceSSID);
+							if (!ssid.empty()) {
+								CFRelease(ifaceInfo);
+								break;
+							}
+						}
+						CFRelease(ifaceInfo);
+					}
+				}
+			}
+			CFRelease(ifaceNames);
+		}
+		return ssid;
+	#endif
 }
 
 // -----------------------------------------------------------------------------

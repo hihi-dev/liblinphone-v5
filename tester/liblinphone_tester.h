@@ -17,11 +17,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef LIBLINPHONE_TESTER_H_
 #define LIBLINPHONE_TESTER_H_
-
-
 
 #include <bctoolbox/tester.h>
 #include "linphone/core.h"
@@ -29,7 +26,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
 
 #ifdef _MSC_VER
 #define popen _popen
@@ -46,12 +42,15 @@ extern jobject system_context;
 extern void *system_context;
 #endif
 
-extern test_suite_t account_creator_test_suite;
+extern test_suite_t account_creator_local_test_suite;
+extern test_suite_t account_creator_flexiapi_test_suite;
+extern test_suite_t account_creator_xmlrpc_test_suite;
 extern test_suite_t call_test_suite;
 extern test_suite_t push_incoming_call_test_suite;
 
 #if VIDEO_ENABLED
 	extern test_suite_t call_video_test_suite;
+	extern test_suite_t call_video_msogl_test_suite;
 	extern test_suite_t call_video_quality_test_suite;
 #endif // if VIDEO_ENABLED
 
@@ -65,6 +64,7 @@ extern test_suite_t event_test_suite;
 extern test_suite_t main_db_test_suite;
 extern test_suite_t flexisip_test_suite;
 extern test_suite_t group_chat_test_suite;
+extern test_suite_t group_chat2_test_suite;
 extern test_suite_t secure_group_chat_test_suite;
 extern test_suite_t ephemeral_group_chat_test_suite;
 extern test_suite_t log_collection_test_suite;
@@ -74,12 +74,14 @@ extern test_suite_t multi_call_test_suite;
 extern test_suite_t multicast_call_test_suite;
 extern test_suite_t audio_video_conference_test_suite;
 extern test_suite_t multipart_test_suite;
+extern test_suite_t flexiapiclient_suite;
 extern test_suite_t offeranswer_test_suite;
 extern test_suite_t player_test_suite;
 extern test_suite_t presence_server_test_suite;
 extern test_suite_t presence_test_suite;
 extern test_suite_t property_container_test_suite;
 extern test_suite_t proxy_config_test_suite;
+extern test_suite_t account_test_suite;
 extern test_suite_t quality_reporting_test_suite;
 extern test_suite_t register_test_suite;
 extern test_suite_t remote_provisioning_test_suite;
@@ -89,6 +91,11 @@ extern test_suite_t tunnel_test_suite;
 extern test_suite_t upnp_test_suite;
 extern test_suite_t utils_test_suite;
 extern test_suite_t video_test_suite;
+extern test_suite_t capability_negotiation_test_suite;
+extern test_suite_t srtp_capability_negotiation_test_suite;
+extern test_suite_t zrtp_capability_negotiation_test_suite;
+extern test_suite_t dtls_srtp_capability_negotiation_test_suite;
+extern test_suite_t ice_capability_negotiation_test_suite;
 extern test_suite_t call_recovery_test_suite;
 extern test_suite_t call_with_ice_test_suite;
 extern test_suite_t call_secure_test_suite;
@@ -98,6 +105,7 @@ extern test_suite_t lime_server_auth_test_suite;
 extern test_suite_t vfs_encryption_test_suite;
 extern test_suite_t local_conference_test_suite;
 extern test_suite_t external_domain_test_suite;
+extern test_suite_t potential_configuration_graph_test_suite;
 
 #ifdef VCARD_ENABLED
 	extern test_suite_t vcard_test_suite;
@@ -159,7 +167,11 @@ extern const char* userhostsfile;
 extern const char* file_transfer_url;
 extern const char* file_transfer_url_tls_client_auth;
 extern const char* file_transfer_url_digest_auth;
+extern const char* file_transfer_url_digest_auth_external_domain;
 extern const char* file_transfer_url_digest_auth_any_domain;
+extern const char* file_transfer_url_small_files;
+extern const char* file_transfer_get_proxy;
+extern const char* file_transfer_get_proxy_external_domain;
 extern const char* lime_server_c25519_url;
 extern const char* lime_server_c448_url;
 extern const char* lime_server_any_domain_c25519_url;
@@ -377,7 +389,6 @@ typedef struct _stats {
 	int number_of_LinphoneCoreAudioDevicesListUpdated;
 }stats;
 
-
 typedef struct _LinphoneCoreManager {
 	LinphoneCoreCbs *cbs;
 	LinphoneCore *lc;
@@ -411,7 +422,6 @@ typedef struct _LinphoneCallTestParams {
 	bool_t sdp_simulate_error;
 } LinphoneCallTestParams;
 
-
 void liblinphone_tester_add_suites(void);
 
 void linphone_core_manager_init(LinphoneCoreManager *mgr, const char* rc_file, const char* phone_alias);
@@ -424,7 +434,7 @@ LinphoneCoreManager* linphone_core_manager_create2(const char* rc_file, const ch
 LinphoneCoreManager* linphone_core_manager_create(const char* rc_file);
 LinphoneCoreManager* linphone_core_manager_new4(const char* rc_file, int check_for_proxies, const char* phone_aliasconst, const char* contact_params, int expires);
 LinphoneCoreManager* linphone_core_manager_new3(const char* rc_file, bool_t check_for_proxies, const char* phone_alias);
-LinphoneCoreManager* linphone_core_manager_new2(const char* rc_file, bool_t check_for_proxies);
+LinphoneCoreManager* linphone_core_manager_new_with_proxies_check(const char* rc_file, bool_t check_for_proxies);
 LinphoneCoreManager* linphone_core_manager_new(const char* rc_file);
 LinphoneCoreManager* linphone_core_manager_create_local(const char* rc_factory, const char* rc_local, const char *linphone_db, const char *lime_db, const char *call_logs_db, const char *zrtp_secrets_db);
 LinphoneCoreManager* linphone_core_manager_new_local(const char* rc_factory, const char* rc_local, const char *linphone_db, const char *lime_db, const char *call_logs_db, const char *zrtp_secrets_db);
@@ -490,8 +500,8 @@ LinphoneAddress * create_linphone_address_for_algo(const char * domain, const ch
 bool_t wait_for(LinphoneCore* lc_1, LinphoneCore* lc_2,int* counter,int value);
 bool_t wait_for_list(MSList* lcs,int* counter,int value,int timeout_ms);
 bool_t wait_for_list_interval(MSList* lcs,int* counter,int min,int max,int timeout_ms);
-bool_t wait_for_until(LinphoneCore* lc_1, LinphoneCore* lc_2,int* counter,int value,int timout_ms);
-bool_t wait_for_until_interval(LinphoneCore* lc_1, LinphoneCore* lc_2,int* counter,int min,int max,int timout_ms);
+bool_t wait_for_until(LinphoneCore* lc_1, LinphoneCore* lc_2,int* counter,int value,int timeout_ms);
+bool_t wait_for_until_interval(LinphoneCore* lc_1, LinphoneCore* lc_2,int* counter,int min,int max,int timeout_ms);
 
 bool_t call_with_params(LinphoneCoreManager* caller_mgr
 						,LinphoneCoreManager* callee_mgr
@@ -519,6 +529,7 @@ LinphoneCoreManager *get_manager(LinphoneCore *lc);
 const char *liblinphone_tester_get_subscribe_content(void);
 const char *liblinphone_tester_get_notify_content(void);
 void liblinphone_tester_chat_message_state_change(LinphoneChatMessage* msg,LinphoneChatMessageState state,void* ud);
+bool_t liblinphone_tester_chat_message_msg_update_stats(stats * counters, LinphoneChatMessageState state);
 void liblinphone_tester_chat_message_msg_state_changed(LinphoneChatMessage *msg, LinphoneChatMessageState state);
 void liblinphone_tester_chat_room_msg_sent(LinphoneCore *lc, LinphoneChatRoom *room, LinphoneChatMessage *msg);
 void liblinphone_tester_chat_message_ephemeral_timer_started(LinphoneChatMessage *msg);
@@ -526,18 +537,21 @@ void liblinphone_tester_chat_message_ephemeral_deleted(LinphoneChatMessage *msg)
 void core_chat_room_state_changed (LinphoneCore *core, LinphoneChatRoom *cr, LinphoneChatRoomState state);
 void liblinphone_tester_x3dh_user_created(LinphoneCore *lc, const bool_t status, const char* userId, const char *info);
 void core_chat_room_subject_changed (LinphoneCore *core, LinphoneChatRoom *cr);
+bctbx_list_t * liblinphone_tester_get_messages_and_states(LinphoneChatRoom * cr, int * messageCount, stats * stats);	// Return all LinphoneChatMessage and count states
+
+
 
 void liblinphone_tester_check_rtcp(LinphoneCoreManager* caller, LinphoneCoreManager* callee);
 void liblinphone_tester_clock_start(MSTimeSpec *start);
 bool_t liblinphone_tester_clock_elapsed(const MSTimeSpec *start, int value_ms);
+
 void linphone_core_manager_check_accounts(LinphoneCoreManager *m);
 void account_manager_destroy(void);
-LinphoneAddress *account_manager_get_identity_with_modified_identity(const LinphoneAddress *modified_identity);
 LinphoneCore *configure_lc_from(LinphoneCoreCbs *cbs, const char *path, LinphoneConfig *config, void *user_data);
 void configure_core_for_callbacks(LinphoneCoreManager *lcm, LinphoneCoreCbs *cbs);
 
 void liblinphone_tester_set_next_video_frame_decoded_cb(LinphoneCall *call);
-void call_paused_resumed_base(bool_t multicast,bool_t with_losses);
+void call_paused_resumed_base(bool_t multicast,bool_t with_losses,bool_t accept_video);
 void simple_call_base(bool_t enable_multicast_recv_side, bool_t disable_soundcard, bool_t use_multipart_invite_body);
 void simple_call_base_with_rcs(const char *caller_rc, const char *callee_rc, bool_t enable_multicast_recv_side, bool_t disable_soundcard, bool_t use_multipart_invite_body);
 void _call_with_rtcp_mux(bool_t caller_rtcp_mux, bool_t callee_rtcp_mux, bool_t with_ice,bool_t with_ice_reinvite);
@@ -559,6 +573,9 @@ void record_call(const char *filename, bool_t enableVideo, const char *video_cod
 int check_nb_media_starts(unsigned int media_type, LinphoneCoreManager *caller, LinphoneCoreManager *callee, unsigned int caller_nb_media_starts, unsigned int callee_nb_media_starts);
 
 void setup_sdp_handling(const LinphoneCallTestParams* params, LinphoneCoreManager* mgr);
+void check_stream_encryption(LinphoneCall * call);
+int get_stream_stop_count(LinphoneCall * call);
+bool_t search_matching_srtp_suite(LinphoneCoreManager* caller_mgr,LinphoneCoreManager* callee_mgr);
 
 LinphoneChatRoom * create_chat_room_client_side(bctbx_list_t *lcs, LinphoneCoreManager *lcm, stats *initialStats, bctbx_list_t *participantsAddresses, const char* initialSubject, bool_t encrypted);
 LinphoneChatRoom * create_chat_room_with_params(bctbx_list_t *lcs, LinphoneCoreManager *lcm, stats *initialStats, bctbx_list_t *participantsAddresses, const char* initialSubject, LinphoneChatRoomParams *params);
@@ -583,15 +600,14 @@ void liblinphone_tester_after_each(void);
 void liblinphone_tester_init(void(*ftester_printf)(int level, const char *fmt, va_list args));
 void liblinphone_tester_uninit(void);
 int liblinphone_tester_set_log_file(const char *filename);
-bool_t check_ice(LinphoneCoreManager* caller, LinphoneCoreManager* callee, LinphoneIceState state);
 
 // Add internal callback for subscriptions and notifications
 LinphoneCoreManager *create_mgr_for_conference(const char * rc_file, bool_t check_for_proxies);
 void setup_mgr_for_conference(LinphoneCoreManager *mgr);
 void destroy_mgr_in_conference(LinphoneCoreManager *mgr);
+void check_conference_medias(LinphoneConference * local_conference, LinphoneConference * remote_conference);
 LinphoneStatus add_participant_to_local_conference_through_invite(bctbx_list_t *lcs, LinphoneCoreManager * conf_mgr, bctbx_list_t *participants, const LinphoneCallParams *params);
-LinphoneStatus accept_call_in_local_conference(bctbx_list_t *lcs, LinphoneCoreManager * conf_mgr, LinphoneCoreManager * participant_mgr);
-LinphoneStatus add_calls_to_local_conference(bctbx_list_t *lcs, LinphoneCoreManager * conf_mgr, LinphoneConference * conference, bctbx_list_t *new_participants);
+LinphoneStatus add_calls_to_local_conference(bctbx_list_t *lcs, LinphoneCoreManager * conf_mgr, LinphoneConference * conference, bctbx_list_t *new_participants, bool_t one_by_one);
 LinphoneStatus add_calls_to_remote_conference(bctbx_list_t *lcs, LinphoneCoreManager * focus_mgr, LinphoneCoreManager * conf_mgr, bctbx_list_t *new_participants);
 LinphoneStatus remove_participant_from_local_conference(bctbx_list_t *lcs, LinphoneCoreManager * conf_mgr, LinphoneCoreManager * participant_mgr);
 LinphoneStatus terminate_conference(bctbx_list_t *lcs, LinphoneCoreManager * conf_mgr, LinphoneConference * conference, LinphoneCoreManager * focus_mgr);
@@ -604,6 +620,7 @@ LinphoneAddress * linphone_core_manager_resolve(LinphoneCoreManager *mgr, const 
 FILE *sip_start(const char *senario, const char* dest_username, const char *passwd, LinphoneAddress* dest_addres);
 
 void early_media_without_sdp_in_200_base( bool_t use_video, bool_t use_ice );
+void enable_stun_in_core(LinphoneCoreManager * mgr, const bool_t enable_ice);
 void linphone_conf_event_notify(LinphoneEvent *lev);
 void _check_friend_result_list(LinphoneCore *lc, const bctbx_list_t *resultList, const unsigned int index, const char* uri, const char* phone);
 
@@ -613,7 +630,6 @@ const char *liblinphone_tester_get_empty_rc(void);
 int liblinphone_tester_copy_file(const char *from, const char *to);
 size_t liblinphone_tester_load_text_file_in_buffer(const char *filePath, char **buffer);
 char * generate_random_e164_phone_from_dial_plan(const LinphoneDialPlan *dialPlan);
-
 
 void linphone_core_start_process_remote_notification (LinphoneCoreManager *mgr, const char *callid);
 extern MSSndCardDesc dummy_test_snd_card_desc;
@@ -625,6 +641,12 @@ extern MSSndCardDesc dummy2_test_snd_card_desc;
 extern MSSndCardDesc dummy3_test_snd_card_desc;
 #define DUMMY3_TEST_SOUNDCARD "dummy3 test sound card"
 
+extern MSSndCardDesc dummy_playback_test_snd_card_desc;
+#define DUMMY_PLAYBACK_TEST_SOUNDCARD "dummy playback test sound card"
+
+extern MSSndCardDesc dummy_capture_test_snd_card_desc;
+#define DUMMY_CAPTURE_TEST_SOUNDCARD "dummy capture test sound card"
+
 /**
  * Set the requested curve and matching lime server url in the given core manager
  * WARNING: uses a dirty trick: the linphone_core_set_lime_x3dh_server_url will actually restart
@@ -635,10 +657,20 @@ void set_lime_curve(const int curveId, LinphoneCoreManager *manager);
 void set_lime_curve_list(const int curveId, bctbx_list_t *managerList);
 void set_lime_curve_list_tls(const int curveId, bctbx_list_t *managerList, bool_t tls_auth_server, bool_t required);
 
+typedef struct _LinphoneAccountCreatorStats {
+	int cb_done;
+} LinphoneAccountCreatorStats;
+
+LinphoneAccountCreatorStats* new_linphone_account_creator_stats(void) ;
+void account_creator_set_cb_done(LinphoneAccountCreatorCbs *cbs);
+void account_creator_reset_cb_done(LinphoneAccountCreatorCbs *cbs);
+
+
 void lime_delete_DRSessions(const char *limedb);
 
 void liblinphone_tester_simulate_mire_defunct(MSFilter * filter, bool_t defunct);// if defunct : Set fps to 0 and keep it on updates. if false : remove fps protection.
-
+bctbx_list_t *liblinphone_tester_resolve_name_to_ip_address(const char *name);
+bctbx_list_t * liblinphone_tester_remove_v6_addr(bctbx_list_t *l);
 
 #ifdef __cplusplus
 };

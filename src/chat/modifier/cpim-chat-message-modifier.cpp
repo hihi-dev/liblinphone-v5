@@ -17,6 +17,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bctoolbox/utils.hh"
+
 #include "linphone/utils/utils.h"
 
 #include "address/address.h"
@@ -39,6 +41,8 @@ LINPHONE_BEGIN_NAMESPACE
 const string linphoneNamespaceTag = "tag:linphone.org,2020:params:groupchat";
 const string linphoneNamespace = "linphone";
 const string linphoneEphemeralHeader = "Ephemeral-Time";
+const string linphoneReplyingToMessageIdHeader = "Replying-To-Message-ID";
+const string linphoneReplyingToMessageSenderHeader = "Replying-To-Sender";
 
 const string imdnNamespaceUrn = "urn:ietf:params:imdn";
 const string imdnNamespace = "imdn";
@@ -50,10 +54,10 @@ ChatMessageModifier::Result CpimChatMessageModifier::encode (const shared_ptr<Ch
 	Cpim::Message cpimMessage;
 
 	cpimMessage.addMessageHeader(
-		Cpim::FromHeader(cpimAddressUri(message->getFromAddress()), cpimAddressDisplayName(message->getFromAddress()))
+		Cpim::FromHeader(cpimAddressUri(message->getFromAddress().asAddress()), cpimAddressDisplayName(message->getFromAddress().asAddress()))
 	);
 	cpimMessage.addMessageHeader(
-		Cpim::ToHeader(cpimAddressUri(message->getToAddress()), cpimAddressDisplayName(message->getToAddress()))
+		Cpim::ToHeader(cpimAddressUri(message->getToAddress().asAddress()), cpimAddressDisplayName(message->getToAddress().asAddress()))
 	);
 	cpimMessage.addMessageHeader(
 		Cpim::DateTimeHeader(message->getTime())
@@ -90,6 +94,21 @@ ChatMessageModifier::Result CpimChatMessageModifier::encode (const shared_ptr<Ch
 		if (!forwardInfo.empty()) {
 			cpimMessage.addMessageHeader(
 				Cpim::GenericHeader(imdnNamespace + "." + imdnForwardInfoHeader, forwardInfo)
+			);
+		}
+
+		const string &replyToMessageId = message->getReplyToMessageId();
+		if (!replyToMessageId.empty()) {
+			if (!message->isEphemeral()) { // If message is ephemeral linphone namespace has already been set
+				cpimMessage.addMessageHeader(Cpim::NsHeader(linphoneNamespaceTag, linphoneNamespace));
+			}
+			cpimMessage.addMessageHeader(
+				Cpim::GenericHeader(linphoneNamespace + "." + linphoneReplyingToMessageIdHeader, replyToMessageId)
+			);
+			const IdentityAddress& senderAddress = message->getReplyToSenderAddress();
+			string address = senderAddress.asString();
+			cpimMessage.addMessageHeader(
+				Cpim::GenericHeader(linphoneNamespace + "." + linphoneReplyingToMessageSenderHeader, address)
 			);
 		}
 
@@ -208,7 +227,7 @@ ChatMessageModifier::Result CpimChatMessageModifier::decode (const shared_ptr<Ch
 			messageIdHeader = cpimMessage->getMessageHeader(imdnMessageIdHeader, imdnNsName);
 		auto dispositionNotificationHeader = cpimMessage->getMessageHeader(imdnDispositionNotificationHeader, imdnNsName);
 		if (dispositionNotificationHeader) {
-			vector<string> values = Utils::split(dispositionNotificationHeader->getValue(), ", ");
+			vector<string> values = bctoolbox::Utils::split(dispositionNotificationHeader->getValue(), ", ");
 			for (const auto &value : values) {
 				string trimmedValue = Utils::trim(value); // Might be better to have a Disposition-Notification parser from the CPIM parser
 				if (trimmedValue == "positive-delivery")
@@ -233,6 +252,12 @@ ChatMessageModifier::Result CpimChatMessageModifier::decode (const shared_ptr<Ch
 			long time = (long)Utils::stod(timeHeader->getValue());
 			message->getPrivate()->enableEphemeralWithTime(time);
 		}
+
+		auto replyToMessageIdHeader = cpimMessage->getMessageHeader(linphoneReplyingToMessageIdHeader, linphoneNsName);
+		auto replyToSenderHeader = cpimMessage->getMessageHeader(linphoneReplyingToMessageSenderHeader, linphoneNsName);
+		if (replyToMessageIdHeader && replyToSenderHeader) {
+			message->getPrivate()->setReplyToMessageIdAndSenderAddress(replyToMessageIdHeader->getValue(), IdentityAddress(replyToSenderHeader->getValue()));
+		}
 	}
 
 	if (messageIdHeader)
@@ -240,7 +265,7 @@ ChatMessageModifier::Result CpimChatMessageModifier::decode (const shared_ptr<Ch
 
 	// Discard message if sender authentication is enabled and failed
 	if (message->getPrivate()->senderAuthenticationEnabled) {
-		if (cpimFromAddress == message->getAuthenticatedFromAddress()) {
+		if (cpimFromAddress == message->getAuthenticatedFromAddress().asAddress()) {
 			lInfo() << "[CPIM] Sender authentication successful";
 		} else {
 			lWarning() << "[CPIM] Sender authentication failed";
@@ -270,7 +295,7 @@ Content* CpimChatMessageModifier::createMinimalCpimContentForLimeMessage(const s
 	const string &localDeviceId = chatRoom->getLocalAddress().asString();
 
 	Cpim::Message cpimMessage;
-	cpimMessage.addMessageHeader(Cpim::FromHeader(localDeviceId, cpimAddressDisplayName(message->getToAddress())));
+	cpimMessage.addMessageHeader(Cpim::FromHeader(localDeviceId, cpimAddressDisplayName(message->getToAddress().asAddress())));
 	cpimMessage.addMessageHeader(Cpim::NsHeader(imdnNamespaceUrn, imdnNamespace));
 	cpimMessage.addMessageHeader(Cpim::GenericHeader(imdnNamespace + "." + imdnMessageIdHeader, message->getImdnMessageId()));
 	cpimMessage.addContentHeader(Cpim::GenericHeader("Content-Type", ContentType::PlainText.getMediaType()));

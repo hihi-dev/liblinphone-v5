@@ -31,6 +31,24 @@
 #endif // ifdef __cplusplus
 
 /**
+ * @addtogroup account
+ * @{
+**/
+
+/**
+ * Callback for notifying when a registration state has changed for the account.
+ * @param account #LinphoneAccount object whose registration state changed. @notnil
+ * @param state The current #LinphoneRegistrationState.
+ * @param message A non NULL informational message about the state. @notnil
+ */
+typedef void (*LinphoneAccountCbsRegistrationStateChangedCb)(LinphoneAccount *account, LinphoneRegistrationState state, const char *message);
+
+/**
+ * @}
+**/
+
+
+/**
  * @addtogroup call_control
  * @{
 **/
@@ -382,6 +400,9 @@ typedef void (*LinphoneChatRoomCbsShouldChatMessageBeStoredCb) (LinphoneChatRoom
  */
 typedef void (*LinphoneChatRoomCbsChatMessageParticipantImdnStateChangedCb) (LinphoneChatRoom *chat_room, LinphoneChatMessage *message, const LinphoneParticipantImdnState *state);
 
+	
+	
+	
 /************ */
 /* DEPRECATED */
 /* ********** */
@@ -407,49 +428,57 @@ typedef void (*LinphoneChatMessageStateChangedCb)(LinphoneChatMessage* message, 
  */
 
 /**
- * Callback used to notify a chat room that a participant has been added.
+ * Callback used to notify a conference that a participant has been added.
  * @param[in] conference #LinphoneConference object @notnil
  * @param[in] participant #LinphoneParticipant that has been added to the conference @notnil
  */
 typedef void (*LinphoneConferenceCbsParticipantAddedCb) (LinphoneConference *conference, const LinphoneParticipant *participant);
 
 /**
- * Callback used to notify a chat room that a participant has been removed.
+ * Callback used to notify a conference that a participant has been removed.
  * @param[in] conference #LinphoneConference object @notnil
  * @param[in] participant #LinphoneParticipant that has been removed to the conference @notnil
  */
 typedef void (*LinphoneConferenceCbsParticipantRemovedCb) (LinphoneConference *conference, const LinphoneParticipant *participant);
 
 /**
- * Callback used to notify a chat room that the admin status of a participant has been changed.
+ * Callback used to notify a conference that the admin status of a participant has been changed.
  * @param[in] conference #LinphoneConference object @notnil
  * @param[in] participant #LinphoneParticipant whose admin status has changed @notnil
  */
 typedef void (*LinphoneConferenceCbsParticipantAdminStatusChangedCb) (LinphoneConference *conference, const LinphoneParticipant *participant);
 
 /**
- * Callback used to notify a chat room state has changed.
+ * Callback used to notify a conference state has changed.
  * @param[in] conference #LinphoneConference object @notnil
- * @param[in] newState The new state of the chat room
+ * @param[in] newState The new state of the conference
  */
 typedef void (*LinphoneConferenceCbsStateChangedCb) (LinphoneConference *conference, LinphoneConferenceState newState);
 
 /**
- * Callback used to notify that the subject of a chat room has changed.
+ * Callback used to notify that the subject of a conference has changed.
  * @param[in] conference #LinphoneConference object @notnil
  * @param[in] subject subject of the conference @notnil
  */
 typedef void (*LinphoneConferenceCbsSubjectChangedCb) (LinphoneConference *conference, const char *subject);
 
 /**
- * Callback used to notify a chat room that a participant has been added.
+ * Callback used to notify that the audio device of a conference has changed.
+ * @param[in] conference #LinphoneConference object @notnil
+ * @param[in] audio_device audio device of the conference @notnil
+ */
+typedef void (*LinphoneConferenceCbsAudioDeviceChangedCb) (LinphoneConference *conference, const  LinphoneAudioDevice *audio_device);
+
+
+/**
+ * Callback used to notify a conference that a participant has been added.
  * @param[in] conference #LinphoneConference object @notnil
  * @param[in] participant_device #LinphoneParticipantDevice that has been added to the conference @notnil
  */
 typedef void (*LinphoneConferenceCbsParticipantDeviceAddedCb) (LinphoneConference *conference, const LinphoneParticipantDevice *participant_device);
 
 /**
- * Callback used to notify a chat room that a participant has been removed.
+ * Callback used to notify a conference that a participant has been removed.
  * @param[in] conference #LinphoneConference object @notnil
  * @param[in] participant_device #LinphoneParticipantDevice that has been removed to the conference @notnil
  */
@@ -459,6 +488,22 @@ typedef void (*LinphoneConferenceCbsParticipantDeviceRemovedCb) (LinphoneConfere
  * @}
 **/
 
+/**
+ * @addtogroup misc
+ * @{
+ */
+
+/**
+ * Callback used to notify message delivery status
+ * @param magic_search #LinphoneChatMessage object @notnil
+ */
+typedef void (*LinphoneMagicSearchCbsSearchResultsReceivedCb)(LinphoneMagicSearch* magic_search);
+
+/**
+* @}
+**/	
+	
+	
 #ifdef __cplusplus
 	}
 #endif // ifdef __cplusplus

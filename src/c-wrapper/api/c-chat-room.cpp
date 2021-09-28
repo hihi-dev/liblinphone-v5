@@ -51,21 +51,12 @@ L_DECLARE_C_OBJECT_IMPL_WITH_XTORS(
 	_linphone_chat_room_constructor, _linphone_chat_room_destructor,
 	bctbx_list_t *callbacks; /* A list of LinphoneCallCbs object */
 	LinphoneChatRoomCbs *currentCbs; /* The current LinphoneCallCbs object used to call a callback */
-	mutable LinphoneAddress *conferenceAddressCache;
-	mutable LinphoneAddress *peerAddressCache;
-	mutable LinphoneAddress *localAddressCache;
 	mutable bctbx_list_t *composingAddresses;
 )
 
 static void _linphone_chat_room_constructor (LinphoneChatRoom *cr) {}
 
 static void _linphone_chat_room_destructor (LinphoneChatRoom *cr) {
-	if (cr->conferenceAddressCache)
-		linphone_address_unref(cr->conferenceAddressCache);
-	if (cr->peerAddressCache)
-		linphone_address_unref(cr->peerAddressCache);
-	if (cr->localAddressCache)
-		linphone_address_unref(cr->localAddressCache);
 	if (cr->composingAddresses)
 		bctbx_list_free_with_data(cr->composingAddresses, (bctbx_list_free_func)linphone_address_unref);
 	_linphone_chat_room_clear_callbacks(cr);
@@ -115,21 +106,21 @@ LinphoneCore *linphone_chat_room_get_core (const LinphoneChatRoom *cr) {
 }
 
 const LinphoneAddress *linphone_chat_room_get_peer_address (LinphoneChatRoom *cr) {
-	if (cr->peerAddressCache) {
-		linphone_address_unref(cr->peerAddressCache);
+	const LinphonePrivate::IdentityAddress &address = L_GET_CPP_PTR_FROM_C_OBJECT(cr)->getPeerAddress();
+	if (address.isValid()) {
+		return L_GET_C_BACK_PTR(&(address.asAddress()));
+	} else {
+		return NULL;
 	}
-
-	cr->peerAddressCache = linphone_address_new(L_GET_CPP_PTR_FROM_C_OBJECT(cr)->getPeerAddress().asString().c_str());
-	return cr->peerAddressCache;
 }
 
 const LinphoneAddress *linphone_chat_room_get_local_address (LinphoneChatRoom *cr) {
-	if (cr->localAddressCache) {
-		linphone_address_unref(cr->localAddressCache);
+	const LinphonePrivate::IdentityAddress &address = L_GET_CPP_PTR_FROM_C_OBJECT(cr)->getLocalAddress();
+	if (address.isValid()) {
+		return L_GET_C_BACK_PTR(&(address.asAddress()));
+	} else {
+		return NULL;
 	}
-
-	cr->localAddressCache = linphone_address_new(L_GET_CPP_PTR_FROM_C_OBJECT(cr)->getLocalAddress().asString().c_str());
-	return cr->localAddressCache;
 }
 
 LinphoneChatMessage *linphone_chat_room_create_empty_message (LinphoneChatRoom *cr) {
@@ -183,6 +174,13 @@ LinphoneChatMessage *linphone_chat_room_create_message_2 (
 
 LinphoneChatMessage *linphone_chat_room_create_forward_message (LinphoneChatRoom *cr, LinphoneChatMessage *msg) {
 	shared_ptr<LinphonePrivate::ChatMessage> cppPtr = L_GET_CPP_PTR_FROM_C_OBJECT(cr)->createForwardMessage(L_GET_CPP_PTR_FROM_C_OBJECT(msg));
+	LinphoneChatMessage *object = L_INIT(ChatMessage);
+	L_SET_CPP_PTR_FROM_C_OBJECT(object, cppPtr);
+	return object;
+}
+
+LinphoneChatMessage *linphone_chat_room_create_reply_message (LinphoneChatRoom *cr, LinphoneChatMessage *msg) {
+	shared_ptr<LinphonePrivate::ChatMessage> cppPtr = L_GET_CPP_PTR_FROM_C_OBJECT(cr)->createReplyMessage(L_GET_CPP_PTR_FROM_C_OBJECT(msg));
 	LinphoneChatMessage *object = L_INIT(ChatMessage);
 	L_SET_CPP_PTR_FROM_C_OBJECT(object, cppPtr);
 	return object;
@@ -360,15 +358,13 @@ bool_t linphone_chat_room_has_capability(const LinphoneChatRoom *cr, int mask) {
 }
 
 const LinphoneAddress *linphone_chat_room_get_conference_address (const LinphoneChatRoom *cr) {
-	if (cr->conferenceAddressCache)
-		linphone_address_unref(cr->conferenceAddressCache);
-
-	const LinphonePrivate::IdentityAddress &address = L_GET_CPP_PTR_FROM_C_OBJECT(cr)->getConferenceAddress();
-	if (address.isValid())
-		cr->conferenceAddressCache = linphone_address_new(address.asString().c_str());
-	else
-		cr->conferenceAddressCache = nullptr;
-	return cr->conferenceAddressCache;
+	const LinphonePrivate::ConferenceAddress &confAddress = L_GET_CPP_PTR_FROM_C_OBJECT(cr)->getConferenceAddress();
+	if (confAddress.isValid()) {
+		const LinphonePrivate::Address & address = confAddress.asAddress();
+		return L_GET_C_BACK_PTR(&address);
+	} else {
+		return NULL;
+	}
 }
 
 LinphoneParticipant *linphone_chat_room_get_me (const LinphoneChatRoom *cr) {
@@ -424,8 +420,8 @@ const bctbx_list_t *linphone_chat_room_get_composing_addresses (LinphoneChatRoom
 		list<LinphonePrivate::IdentityAddress> addresses = L_GET_CPP_PTR_FROM_C_OBJECT(cr)->getComposingAddresses();
 		transform(
 			addresses.cbegin(), addresses.cend(),
-			back_inserter(composingAddresses), [](const LinphonePrivate::Address &address) {
-				return LinphonePrivate::IdentityAddress(address);
+			back_inserter(composingAddresses), [](const LinphonePrivate::IdentityAddress &address) {
+				return address.asAddress();
 			}
 		);
 	}
@@ -504,129 +500,132 @@ const bctbx_list_t *linphone_chat_room_get_callbacks_list(const LinphoneChatRoom
 }
 
 #define NOTIFY_IF_EXIST(cbName, functionName, ...) \
-	bctbx_list_t *callbacksCopy = bctbx_list_copy(linphone_chat_room_get_callbacks_list(cr)); \
-	for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) { \
-		linphone_chat_room_set_current_callbacks(cr, reinterpret_cast<LinphoneChatRoomCbs *>(bctbx_list_get_data(it))); \
-		LinphoneChatRoomCbs ## cbName ## Cb cb = linphone_chat_room_cbs_get_ ## functionName (linphone_chat_room_get_current_callbacks(cr)); \
-		if (cb) \
-			cb(__VA_ARGS__); \
-	} \
-	linphone_chat_room_set_current_callbacks(cr, nullptr); \
-	bctbx_list_free(callbacksCopy);
+	do{\
+		bctbx_list_t *callbacksCopy = bctbx_list_copy_with_data(linphone_chat_room_get_callbacks_list(cr), (bctbx_list_copy_func)belle_sip_object_ref); \
+		for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) { \
+			LinphoneChatRoomCbs *cbs = static_cast<LinphoneChatRoomCbs *>(bctbx_list_get_data(it)); \
+			linphone_chat_room_set_current_callbacks(cr, cbs);\
+			LinphoneChatRoomCbs ## cbName ## Cb cb = linphone_chat_room_cbs_get_ ## functionName (cbs); \
+			if (cb) \
+				cb(__VA_ARGS__); \
+		} \
+		linphone_chat_room_set_current_callbacks(cr, nullptr); \
+		bctbx_list_free_with_data(callbacksCopy, (bctbx_list_free_func) belle_sip_object_unref);\
+	}while(0)
 
 void _linphone_chat_room_notify_is_composing_received(LinphoneChatRoom *cr, const LinphoneAddress *remoteAddr, bool_t isComposing) {
-	NOTIFY_IF_EXIST(IsComposingReceived, is_composing_received, cr, remoteAddr, isComposing)
+	NOTIFY_IF_EXIST(IsComposingReceived, is_composing_received, cr, remoteAddr, isComposing);
 }
 
 void _linphone_chat_room_notify_message_received(LinphoneChatRoom *cr, LinphoneChatMessage *msg) {
-	NOTIFY_IF_EXIST(MessageReceived, message_received, cr, msg)
+	NOTIFY_IF_EXIST(MessageReceived, message_received, cr, msg);
 }
 
 void _linphone_chat_room_notify_new_event(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
-	NOTIFY_IF_EXIST(NewEvent, new_event, cr, event_log)
+	NOTIFY_IF_EXIST(NewEvent, new_event, cr, event_log);
 }
 
 void _linphone_chat_room_notify_participant_added(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ParticipantAdded, participant_added, cr, event_log)
+	NOTIFY_IF_EXIST(ParticipantAdded, participant_added, cr, event_log);
 }
 
 void _linphone_chat_room_notify_participant_removed(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ParticipantRemoved, participant_removed, cr, event_log)
+	NOTIFY_IF_EXIST(ParticipantRemoved, participant_removed, cr, event_log);
 }
 
 void _linphone_chat_room_notify_participant_device_added(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ParticipantDeviceAdded, participant_device_added, cr, event_log)
+	NOTIFY_IF_EXIST(ParticipantDeviceAdded, participant_device_added, cr, event_log);
 }
 
 void _linphone_chat_room_notify_participant_device_removed(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ParticipantDeviceRemoved, participant_device_removed, cr, event_log)
+	NOTIFY_IF_EXIST(ParticipantDeviceRemoved, participant_device_removed, cr, event_log);
 }
 
 void _linphone_chat_room_notify_participant_admin_status_changed(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ParticipantAdminStatusChanged, participant_admin_status_changed, cr, event_log)
+	NOTIFY_IF_EXIST(ParticipantAdminStatusChanged, participant_admin_status_changed, cr, event_log);
 }
 
 void _linphone_chat_room_notify_state_changed(LinphoneChatRoom *cr, LinphoneChatRoomState newState) {
-	NOTIFY_IF_EXIST(StateChanged, state_changed, cr, newState)
+	NOTIFY_IF_EXIST(StateChanged, state_changed, cr, newState);
 }
 
 void _linphone_chat_room_notify_security_event(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(SecurityEvent, security_event, cr, event_log)
+	NOTIFY_IF_EXIST(SecurityEvent, security_event, cr, event_log);
 }
 
 void _linphone_chat_room_notify_subject_changed(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(SubjectChanged, subject_changed, cr, event_log)
+	NOTIFY_IF_EXIST(SubjectChanged, subject_changed, cr, event_log);
 }
 
 void _linphone_chat_room_notify_conference_joined(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ConferenceJoined, conference_joined, cr, event_log)
+	NOTIFY_IF_EXIST(ConferenceJoined, conference_joined, cr, event_log);
 }
 
 void _linphone_chat_room_notify_conference_left(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ConferenceLeft, conference_left, cr, event_log)
+	NOTIFY_IF_EXIST(ConferenceLeft, conference_left, cr, event_log);
 }
 
 void _linphone_chat_room_notify_ephemeral_event(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(EphemeralEvent, ephemeral_event, cr, event_log)
+	NOTIFY_IF_EXIST(EphemeralEvent, ephemeral_event, cr, event_log);
 }
 
 void _linphone_chat_room_notify_ephemeral_message_timer_started(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(EphemeralMessageTimerStarted, ephemeral_message_timer_started, cr, event_log)
+	NOTIFY_IF_EXIST(EphemeralMessageTimerStarted, ephemeral_message_timer_started, cr, event_log);
 }
 
 void _linphone_chat_room_notify_ephemeral_message_deleted(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(EphemeralMessageDeleted, ephemeral_message_deleted, cr, event_log)
+	NOTIFY_IF_EXIST(EphemeralMessageDeleted, ephemeral_message_deleted, cr, event_log);
 }
 
 void _linphone_chat_room_notify_undecryptable_message_received(LinphoneChatRoom *cr, LinphoneChatMessage *msg) {
-	NOTIFY_IF_EXIST(UndecryptableMessageReceived, undecryptable_message_received, cr, msg)
+	NOTIFY_IF_EXIST(UndecryptableMessageReceived, undecryptable_message_received, cr, msg);
 }
 
 void _linphone_chat_room_notify_chat_message_received(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ChatMessageReceived, chat_message_received, cr, event_log)
+	NOTIFY_IF_EXIST(ChatMessageReceived, chat_message_received, cr, event_log);
 }
 
 void _linphone_chat_room_notify_chat_message_sending(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ChatMessageSending, chat_message_sending, cr, event_log)
+	NOTIFY_IF_EXIST(ChatMessageSending, chat_message_sending, cr, event_log);
 }
 
 void _linphone_chat_room_notify_chat_message_sent(LinphoneChatRoom *cr, const LinphoneEventLog *event_log) {
 	_linphone_chat_room_notify_new_event(cr, event_log);
-	NOTIFY_IF_EXIST(ChatMessageSent, chat_message_sent, cr, event_log)
+	NOTIFY_IF_EXIST(ChatMessageSent, chat_message_sent, cr, event_log);
 }
 
 void _linphone_chat_room_notify_conference_address_generation(LinphoneChatRoom *cr) {
-	NOTIFY_IF_EXIST(ConferenceAddressGeneration, conference_address_generation, cr)
+	NOTIFY_IF_EXIST(ConferenceAddressGeneration, conference_address_generation, cr);
 }
 
 void _linphone_chat_room_notify_participant_registration_subscription_requested(LinphoneChatRoom *cr, const LinphoneAddress *participantAddr) {
-	NOTIFY_IF_EXIST(ParticipantRegistrationSubscriptionRequested, participant_registration_subscription_requested, cr, participantAddr)
+	NOTIFY_IF_EXIST(ParticipantRegistrationSubscriptionRequested, participant_registration_subscription_requested, cr, participantAddr);
 }
 
 void _linphone_chat_room_notify_participant_registration_unsubscription_requested(LinphoneChatRoom *cr, const LinphoneAddress *participantAddr) {
-	NOTIFY_IF_EXIST(ParticipantRegistrationUnsubscriptionRequested, participant_registration_unsubscription_requested, cr, participantAddr)
+	NOTIFY_IF_EXIST(ParticipantRegistrationUnsubscriptionRequested, participant_registration_unsubscription_requested, cr, participantAddr);
 }
 
 void _linphone_chat_room_notify_chat_message_should_be_stored(LinphoneChatRoom *cr, LinphoneChatMessage *msg) {
-	NOTIFY_IF_EXIST(ShouldChatMessageBeStored, chat_message_should_be_stored, cr, msg)
+	NOTIFY_IF_EXIST(ShouldChatMessageBeStored, chat_message_should_be_stored, cr, msg);
 }
 
 void _linphone_chat_room_notify_chat_message_participant_imdn_state_changed(LinphoneChatRoom *cr, LinphoneChatMessage *msg, const LinphoneParticipantImdnState *state) {
-	NOTIFY_IF_EXIST(ChatMessageParticipantImdnStateChanged, chat_message_participant_imdn_state_changed, cr, msg, state)
+	NOTIFY_IF_EXIST(ChatMessageParticipantImdnStateChanged, chat_message_participant_imdn_state_changed, cr, msg, state);
 }
 
 // =============================================================================

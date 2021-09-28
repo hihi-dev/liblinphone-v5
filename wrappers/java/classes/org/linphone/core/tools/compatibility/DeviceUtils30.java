@@ -56,7 +56,7 @@ public class DeviceUtils30 {
 		}
 	}
 
-	private static String getReasonAsString(int reason) {
+	public static String getReasonAsString(int reason) {
 		if (reason == ApplicationExitInfo.REASON_UNKNOWN) {
 			return "Unknown";
 		} else if (reason == ApplicationExitInfo.REASON_USER_REQUESTED) {
@@ -89,7 +89,7 @@ public class DeviceUtils30 {
 		return "Unexpected: " + reason;
 	}
 
-	private static String getHumanReadableDateAndTimeFromTimestamp(long timestamp) {
+	public static String getHumanReadableDateAndTimeFromTimestamp(long timestamp) {
 		Calendar cal = Calendar.getInstance();
 		cal.setTimeInMillis(timestamp);
 		return DateFormat.format("dd-MM-yyyy HH:mm:ss", cal).toString();

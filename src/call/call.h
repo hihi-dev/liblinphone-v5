@@ -185,9 +185,9 @@ public:
 	// -----------------------------------------------------------------------------
 	
 	void setInputAudioDevice(AudioDevice *audioDevice);
-	void setInputAudioDevicePrivate(AudioDevice *audioDevice);
+	bool setInputAudioDevicePrivate(AudioDevice *audioDevice);
 	void setOutputAudioDevice(AudioDevice *audioDevice);
-	void setOutputAudioDevicePrivate(AudioDevice *audioDevice);
+	bool setOutputAudioDevicePrivate(AudioDevice *audioDevice);
 	AudioDevice *getInputAudioDevice() const;
 	AudioDevice *getOutputAudioDevice() const;
 	
@@ -209,6 +209,7 @@ public:
 	LinphoneProxyConfig *getDestProxy () const;
 	IceSession *getIceSession () const;
 	unsigned int getAudioStartCount () const;
+	unsigned int getAudioStopCount () const;
 	unsigned int getVideoStartCount () const;
 	unsigned int getTextStartCount () const;
 	// don't make new code relying on this method.
@@ -220,7 +221,6 @@ public:
 	void setMicrophoneMuted (bool muted);
 	
 	// -----------------------------------------------------------------------------
-	void startRemoteRing ();
 	void terminateBecauseOfLostMedia ();
 	
 	// -----------------------------------------------------------------------------
@@ -263,13 +263,16 @@ public:
 	void onStartRingtone(const std::shared_ptr<CallSession> &session) override;
 
 	LinphoneConference *getConference () const;
-	void setConference (LinphoneConference *ref);
+	void reenterLocalConference(const std::shared_ptr<CallSession> &session);
 	void exitFromConference(const std::shared_ptr<CallSession> &session);
+	bool attachedToLocalConference(const std::shared_ptr<CallSession> &session) const;
+	bool attachedToRemoteConference(const std::shared_ptr<CallSession> &session) const;
+	void setConference (LinphoneConference *ref);
 	MSAudioEndpoint *getEndpoint () const;
 	void setEndpoint (MSAudioEndpoint *endpoint);
 	bctbx_list_t *getCallbacksList () const;
-	LinphoneCallCbs *getCurrentCbs () const;
-	void setCurrentCbs (LinphoneCallCbs *cbs);
+	LinphoneCallCbs *getCurrentCallbacks () const;
+	void setCurrentCallbacks (LinphoneCallCbs *cbs);
 	void addCallbacks (LinphoneCallCbs *cbs);
 	void removeCallbacks (LinphoneCallCbs *cbs);
 	
@@ -278,6 +281,7 @@ public:
 	
 
 	bool canSoundResourcesBeFreed () const;
+	const std::list<LinphoneMediaEncryption> getSupportedEncryptions() const;
 
 private:
 	std::shared_ptr<Participant> mParticipant;
@@ -293,7 +297,9 @@ private:
 	LinphoneConference *mConfRef = nullptr;
 	MSAudioEndpoint *mEndpoint = nullptr;
 
-	void removeFromConference(const Address & remoteContactAddress);
+	void changeSubjectInLocalConference(SalCallOp *op);
+	void terminateConference();
+	void cleanupSessionAndUnrefCObjectCall();
 	
 	void *mUserData = nullptr;
 };

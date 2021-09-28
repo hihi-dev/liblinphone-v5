@@ -29,13 +29,14 @@
 #include "content/content-type.h"
 #include "content/content-disposition.h"
 #include "logger/logger.h"
+#include "sal/sal_media_description.h"
 #include "sal/sal.h"
 
 LINPHONE_BEGIN_NAMESPACE
 
 class SalMessageOpInterface;
 
-class SalOp {
+class LINPHONE_PUBLIC SalOp {
 public:
 	SalOp (Sal *sal);
 	virtual ~SalOp ();
@@ -144,27 +145,27 @@ public:
 protected:
 	enum class State {
 		Early = 0,
-		Active,
-		Terminating, // This state is used to wait until a proceeding state, so we can send the cancel
-		Terminated
+		Active = 1,
+		Terminating = 2, // This state is used to wait until a proceeding state, so we can send the cancel
+		Terminated = 3
 	};
 
 	static std::string toString (const State value);
 
 	enum class Dir {
 		Incoming = 0,
-		Outgoing
+		Outgoing = 1
 	};
 
 	enum class Type {
-		Unknown,
-		Register,
-		Call,
-		Message,
-		Presence,
-		Publish,
-		Subscribe,
-		Refer // For out of dialog refer only
+		Unknown = 0,
+		Register = 1,
+		Call = 2,
+		Message = 3,
+		Presence = 4,
+		Publish = 5,
+		Subscribe = 6,
+		Refer = 7 // For out of dialog refer only
 	};
 
 	static const size_t SIP_MESSAGE_BODY_LIMIT = 16*1024; // 16kB
@@ -261,7 +262,7 @@ protected:
 	belle_sip_dialog_t *mDialog = nullptr;
 	belle_sip_header_replaces_t *mReplaces = nullptr;
 	belle_sip_header_referred_by_t *mReferredBy = nullptr;
-	SalMediaDescription *mResult = nullptr;
+	std::shared_ptr<SalMediaDescription> mResult = nullptr;
 	belle_sdp_session_description_t *mSdpAnswer = nullptr;
 	State mState = State::Early;
 	Dir mDir = Dir::Incoming;

@@ -20,8 +20,6 @@
 #ifndef _L_CONFERENCE_SUBJECT_EVENT_H_
 #define _L_CONFERENCE_SUBJECT_EVENT_H_
 
-#include <string>
-
 #include "conference-notified-event.h"
 
 // =============================================================================

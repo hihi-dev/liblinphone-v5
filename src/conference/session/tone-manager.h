@@ -54,6 +54,8 @@ class ToneManager : public CoreAccessor {
 
         // callback file player
         void onFilePlayerEnd(unsigned int eventId);
+        void onPlayToneEnd(unsigned int eventId);
+        
 
         // tester
         LinphoneCoreToneManagerStats *getStats();
@@ -69,16 +71,16 @@ class ToneManager : public CoreAccessor {
 
     private:
         using AudioResourceType = enum {
-            ToneGenerator,
-            LocalPlayer
+            ToneGenerator = 0,
+            LocalPlayer = 1
         };
 
         using State = enum {
-            None,     // No tone played, not in call (the session just started or will end soon)
-            Call,     // Running call
-            Ringback, // Play Ringback tone
-            Ringtone, // Play Ringtone or play a tone over the current call
-            Tone      // Play a DTMF tone or a tone file
+            None = 0,     // No tone played, not in call (the session just started or will end soon)
+            Call = 1,     // Running call
+            Ringback = 2, // Play Ringback tone
+            Ringtone = 3, // Play Ringtone or play a tone over the current call
+            Tone = 4      // Play a DTMF tone or a tone file
         };
         std::string stateToString(ToneManager::State state);
         void printDebugInfo(const std::shared_ptr<CallSession> &session);
@@ -106,9 +108,11 @@ class ToneManager : public CoreAccessor {
         // stop
         void doStopRingbackTone();
         void doStopTone();
-        void doStopToneToPlaySomethingElse(const std::shared_ptr<CallSession> &session);
+        void doStopAllTones();
         void doStopRingtone(const std::shared_ptr<CallSession> &session);
         void doStop(const std::shared_ptr<CallSession> &session, ToneManager::State newState);
+        
+        void updateRings();// UpdateRings is call after a tone end, or when updating call state
 
         // sound
         MSFilter *getAudioResource(AudioResourceType rtype, MSSndCard *card, bool create);

@@ -1,6 +1,6 @@
 ############################################################################
 # CMakeLists.txt
-# Copyright (C) 2017  Belledonne Communications, Grenoble France
+# Copyright (C) 2010-2021 Belledonne Communications, Grenoble France
 #
 ############################################################################
 #
@@ -24,15 +24,25 @@ set(LINK_LIBS
 	bctoolbox
 	${BELLESIP_TARGETNAME}
 	belr
-	mediastreamer
-	ortp
 )
+set(PUBLIC_LINK_LIBS
+	ortp
+	mediastreamer
+)
+
+if (ENABLE_FLEXIAPI)
+	if (XCODE)
+		list(APPEND LINK_LIBS jsoncpp_static)
+	else()
+		list(APPEND LINK_LIBS jsoncpp_object)
+	endif()
+endif()
 
 #APPLE_LIBS is mandatory for apple compilation
 if(APPLE)
 	list(APPEND APPLE_LIBS "-framework CFNetwork -framework Foundation -framework AVFoundation -framework SystemConfiguration -framework CoreLocation")
 	if(IOS)
-		list(APPEND APPLE_LIBS "-framework UIKit")
+		list(APPEND APPLE_LIBS "-framework UIKit -framework PushKit -framework CallKit")
 	endif()
 endif()
 
@@ -90,9 +100,7 @@ if(ENABLE_TUNNEL)
 	list(APPEND LINK_LIBS ${TUNNEL_LIBRARIES})
   	add_definitions(-DTUNNEL_ENABLED)
 endif()
-if(MSVC AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsPhone" AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-	list(APPEND LINK_LIBS ${LIBGCC} ${LIBMINGWEX})
-endif()
+
 if(WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsPhone" AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
 	list(APPEND LINK_LIBS shlwapi)
 endif()
@@ -104,11 +112,18 @@ if(BELCARD_FOUND)
 	list(APPEND INTERFACE_LIBS belcard)
 	list(APPEND LINK_LIBS belcard)
 endif()
-
+if(OPENLDAP_FOUND)
+	list(APPEND LINK_LIBS ${OPENLDAP_LIBRARIES})
+endif()
 #define log domain for this part of code
 add_definitions(-DBCTBX_LOG_DOMAIN="liblinphone")
+if(ENABLE_LDAP)
+	add_definitions(-DBUILD_LDAP)
+endif()
 
 set(LINPHONE_CXX_OBJECTS_PRIVATE_HEADER_FILES
+	account/account.h
+	account/account-params.h
 	address/address.h
 	address/identity-address.h
 	address/identity-address-parser.h
@@ -152,6 +167,7 @@ set(LINPHONE_CXX_OBJECTS_PRIVATE_HEADER_FILES
 	chat/notification/imdn.h
 	chat/notification/is-composing-listener.h
 	chat/notification/is-composing.h
+	conference/conference-enums.h
 	conference/conference-id.h
 	conference/conference-listener.h
 	conference/notify-conference-listener.h
@@ -215,6 +231,7 @@ set(LINPHONE_CXX_OBJECTS_PRIVATE_HEADER_FILES
 	event-log/conference/conference-participant-event.h
 	event-log/conference/conference-security-event.h
 	event-log/conference/conference-subject-event.h
+	event-log/conference/conference-available-media-event.h
 	event-log/event-log-p.h
 	event-log/event-log.h
 	event-log/events.h
@@ -236,7 +253,15 @@ set(LINPHONE_CXX_OBJECTS_PRIVATE_HEADER_FILES
 	object/property-container.h
 	object/singleton.h
 	push-notification-message/push-notification-message.h
+	push-notification/push-notification-config.h
 	sal/sal.h
+	sal/sal_stream_bundle.h
+	sal/sal_stream_description.h
+	sal/sal_stream_configuration.h
+	sal/sal_media_description.h
+	sal/offeranswer.h
+	sal/potential_config_graph.h
+	search/search-async-data.h
 	search/magic-search-p.h
 	search/magic-search.h
 	search/search-result.h
@@ -273,6 +298,15 @@ if(ENABLE_ADVANCED_IM)
 	)
 endif()
 
+if(ENABLE_LDAP)
+	list(APPEND LINPHONE_CXX_OBJECTS_PRIVATE_HEADER_FILES
+		ldap/ldap-config-keys.h
+		ldap/ldap-contact-fields.h
+		ldap/ldap-contact-provider.h
+		ldap/ldap-contact-search.h
+		)
+endif()
+
 if(ENABLE_DB_STORAGE)
 	list(APPEND LINPHONE_CXX_OBJECTS_PRIVATE_HEADER_FILES
 		db/internal/db-transaction.h
@@ -281,9 +315,22 @@ if(ENABLE_DB_STORAGE)
 endif()
 
 set(LINPHONE_CXX_OBJECTS_SOURCE_FILES
+	account/account.cpp
+	account/account-params.cpp
+	account_creator/utils.cpp
+	account_creator/service.cpp
+	account_creator/main.cpp
+	account_creator/connector_xmlrpc.cpp
 	address/address.cpp
 	address/identity-address.cpp
 	address/identity-address-parser.cpp
+	auth-info/auth-info.cpp
+	auth-info/auth-stack.cpp
+	c-wrapper/c-wrapper.cpp
+	c-wrapper/api/c-digest-authentication-policy.cpp
+	c-wrapper/api/c-account.cpp
+	c-wrapper/api/c-account-cbs.cpp
+	c-wrapper/api/c-account-params.cpp
 	c-wrapper/api/c-address.cpp
 	c-wrapper/api/c-audio-device.cpp
 	c-wrapper/api/c-auth-info.cpp
@@ -304,17 +351,17 @@ set(LINPHONE_CXX_OBJECTS_SOURCE_FILES
 	c-wrapper/api/c-event-log.cpp
 	c-wrapper/api/c-factory.cpp
 	c-wrapper/api/c-magic-search.cpp
+	c-wrapper/api/c-magic-search-cbs.cpp
 	c-wrapper/api/c-participant.cpp
 	c-wrapper/api/c-participant-device.cpp
 	c-wrapper/api/c-participant-device-identity.cpp
 	c-wrapper/api/c-participant-imdn-state.cpp
 	c-wrapper/api/c-participant.cpp
 	c-wrapper/api/c-push-notification-message.cpp
+	c-wrapper/api/c-push-notification-config.cpp
 	c-wrapper/api/c-search-result.cpp
 	c-wrapper/internal/c-sal.cpp
 	c-wrapper/internal/c-tools.cpp
-	auth-info/auth-info.cpp
-	auth-info/auth-stack.cpp
 	call/call.cpp
 	chat/chat-message/chat-message.cpp
 	chat/chat-message/imdn-message.cpp
@@ -336,6 +383,7 @@ set(LINPHONE_CXX_OBJECTS_SOURCE_FILES
 	chat/modifier/multipart-chat-message-modifier.cpp
 	chat/notification/imdn.cpp
 	chat/notification/is-composing.cpp
+	conference/conference-enums.cpp
 	conference/conference-id.cpp
 	conference/conference.cpp
 	conference/conference-interface.cpp
@@ -388,6 +436,7 @@ set(LINPHONE_CXX_OBJECTS_SOURCE_FILES
 	event-log/conference/conference-participant-event.cpp
 	event-log/conference/conference-security-event.cpp
 	event-log/conference/conference-subject-event.cpp
+	event-log/conference/conference-available-media-event.cpp
 	event-log/conference/conference-ephemeral-message-event.cpp
 	event-log/event-log.cpp
 	factory/factory.cpp
@@ -401,6 +450,7 @@ set(LINPHONE_CXX_OBJECTS_SOURCE_FILES
 	object/object.cpp
 	object/property-container.cpp
 	push-notification-message/push-notification-message.cpp
+	push-notification/push-notification-config.cpp
 	sal/call-op.cpp
 	sal/event-op.cpp
 	sal/message-op.cpp
@@ -409,7 +459,14 @@ set(LINPHONE_CXX_OBJECTS_SOURCE_FILES
 	sal/refer-op.cpp
 	sal/register-op.cpp
 	sal/sal.cpp
+	sal/sal_stream_bundle.cpp
+	sal/sal_stream_description.cpp
+	sal/sal_stream_configuration.cpp
+	sal/sal_media_description.cpp
+	sal/offeranswer.cpp
+	sal/potential_config_graph.cpp
 	search/magic-search.cpp
+	search/search-async-data.cpp
 	search/search-result.cpp
 	utils/background-task.cpp
 	utils/fs.cpp
@@ -420,6 +477,22 @@ set(LINPHONE_CXX_OBJECTS_SOURCE_FILES
 	utils/version.cpp
 	variant/variant.cpp
 )
+
+if(ENABLE_LDAP)
+	list(APPEND LINPHONE_CXX_OBJECTS_SOURCE_FILES
+		ldap/ldap-config-keys.cpp
+		ldap/ldap-contact-fields.cpp
+		ldap/ldap-contact-provider.cpp
+		ldap/ldap-contact-search.cpp
+		)
+endif()
+
+if (ENABLE_FLEXIAPI)
+	list(APPEND LINPHONE_CXX_OBJECTS_SOURCE_FILES
+		account_creator/connector_flexiapi.cpp
+		FlexiAPIClient.cc
+	)
+endif()
 
 if(ENABLE_VIDEO)
 	list(APPEND LINPHONE_CXX_OBJECTS_SOURCE_FILES
@@ -514,6 +587,15 @@ if(ENABLE_STATIC)
 		${LINPHONE_CXX_OBJECTS_PRIVATE_HEADER_FILES} ${LINPHONE_CXX_OBJECTS_SOURCE_FILES} ${LINPHONE_OBJC_SOURCE_FILES}
 		$<TARGET_OBJECTS:linphone-coreapi-static>
 	)
+
+	if (ENABLE_FLEXIAPI)
+		if (XCODE)
+			target_link_libraries(linphone PRIVATE jsoncpp_static)
+		else()
+			target_link_libraries(linphone PRIVATE jsoncpp_object)
+		endif()
+	endif()
+
 	if (APPLE)
 		set_target_properties(linphone-static PROPERTIES OUTPUT_NAME linphone)
 	else()
@@ -528,7 +610,10 @@ if(ENABLE_STATIC)
 		$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/>
 		PRIVATE ${LINPHONE_INCLUDE_DIRS} ${LINPHONE_CXX_OBJECTS_INCLUDE_DIRS}
 	)
-	target_link_libraries(linphone-static PRIVATE ${LINK_LIBS})
+	target_link_libraries(linphone-static
+		PUBLIC ${PUBLIC_LINK_LIBS}
+		PRIVATE ${LINK_LIBS}
+	)
 
 	if(APPLE)
 		target_link_libraries(linphone-static PUBLIC ${APPLE_LIBS})
@@ -556,6 +641,15 @@ if(ENABLE_SHARED)
 		${LINPHONE_CXX_OBJECTS_PRIVATE_HEADER_FILES} ${LINPHONE_CXX_OBJECTS_SOURCE_FILES} ${LINPHONE_OBJC_SOURCE_FILES}
 		$<TARGET_OBJECTS:linphone-coreapi>
 	)
+
+	if (ENABLE_FLEXIAPI)
+		if (XCODE)
+			target_link_libraries(linphone PRIVATE jsoncpp_static)
+		else()
+			target_link_libraries(linphone PRIVATE jsoncpp_object)
+		endif()
+	endif()
+
 	if(APPLE)
 		set_target_properties(linphone PROPERTIES OUTPUT_NAME linphone)
 	else()
@@ -581,7 +675,7 @@ if(ENABLE_SHARED)
 		set_target_properties(linphone PROPERTIES
 			FRAMEWORK TRUE
 			MACOSX_FRAMEWORK_IDENTIFIER org.linphone.linphone
-			MACOSX_FRAMEWORK_INFO_PLIST "${CMAKE_SOURCE_DIR}/build/osx/Info.plist.in"
+			MACOSX_FRAMEWORK_INFO_PLIST "${PROJECT_SOURCE_DIR}/build/osx/Info.plist.in"
 			RESOURCE "${LINPHONE_RESOURCES}"
 			PUBLIC_HEADER "${one_header_file}"
 		)
@@ -599,7 +693,10 @@ if(ENABLE_SHARED)
 		$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/>
 		PRIVATE ${LINPHONE_INCLUDE_DIRS} ${LINPHONE_CXX_OBJECTS_INCLUDE_DIRS}
 	)
-	target_link_libraries(linphone PRIVATE ${LINK_LIBS})
+	target_link_libraries(linphone
+		PUBLIC ${PUBLIC_LINK_LIBS}
+		PRIVATE ${LINK_LIBS}
+	)
 
 	if(APPLE)
 		target_link_libraries(linphone PUBLIC ${APPLE_LIBS})

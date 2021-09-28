@@ -45,20 +45,21 @@ class MixerSession;
  */
 class Stream : public MediaDescriptionRenderer{
 	friend class StreamsGroup;
+	friend class MS2Stream;
 public:
 	enum State{
-		Stopped,
-		Preparing,
-		Running
+		Stopped = 0,
+		Preparing = 1,
+		Running = 2
 	};
-	
+
 	virtual void fillLocalMediaDescription(OfferAnswerContext & ctx) override;
 	/**
 	 * Ask the stream to prepare to run. This may include configuration steps, ICE gathering etc.
 	 * Derived classes must call their parent class implementation of this method.
 	 */
 	virtual bool prepare() override;
-	
+
 	/**
 	 * Request the stream to finish the prepare step (such as ICE gathering).
 	 * Derived classes must call their parent class implementation of this method.
@@ -74,13 +75,13 @@ public:
 	 * Notifies that session is confirmed (called by signaling).
 	 */
 	virtual void sessionConfirmed(const OfferAnswerContext &ctx) override;
-	
+
 	/**
 	 * Ask the stream to stop. A call to prepare() is necessary before doing a future render() operation, if any.
 	 * Derived classes must call their parent class implementation of this method.
 	 */
 	virtual void stop() override;
-	
+
 	/**
 	 * Notifies the stream that it will no longer be used (called in render() ).
 	 * This gives the opportunity to free any useless resource immediately.
@@ -122,6 +123,7 @@ public:
 	virtual float getCurrentQuality() = 0;
 	virtual float getAverageQuality() = 0;
 	virtual void startDtls(const OfferAnswerContext &params) = 0;
+	virtual void startZrtp() = 0;
 	virtual bool isMuted()const = 0;
 	virtual void refreshSockets() = 0;
 	virtual void updateBandwidthReports() = 0;
@@ -139,6 +141,7 @@ public:
 	// Returns whether this stream is the "main" one of its own type, in constrat to secondary streams.
 	bool isMain()const{ return mIsMain;}
 	int getStartCount()const{ return mStartCount; }
+	int getStopCount()const{ return mStopCount; }
 	const PortConfig &getPortConfig()const{ return mPortConfig; }
 	virtual ~Stream() = default;
 	static std::string stateToString(State st){
@@ -152,7 +155,7 @@ public:
 		}
 		return "undefined";
 	}
-	
+
 	static std::pair<int, int> getPortRange(LinphoneCore * core, const SalStreamType type);
 
 protected:
@@ -178,10 +181,16 @@ private:
 	State mState = Stopped;
 	StreamMixer *mMixer = nullptr;
 	bool mIsMain = false;
+	int mStopCount = 0; /* Count of stop() */
 };
 
 inline std::ostream &operator<<(std::ostream & ostr, SalStreamType type){
 	ostr << sal_stream_type_to_string(type);
+	return ostr;
+}
+
+inline std::ostream &operator<<(std::ostream & ostr, SalMediaProto proto){
+	ostr << sal_media_proto_to_string(proto);
 	return ostr;
 }
 
@@ -259,7 +268,7 @@ public:
 };
 
 
-/* 
+/*
  * Base class for a service shared between several streams of a StreamsGroup.
  * A SharedStream may be inserted into the StreamsGroup at any time by a Stream, and used by other
  * streams. Each type of SharedService is unique within the StreamsGroup.
@@ -309,14 +318,14 @@ public:
 	 * when the offer was received from remote side.
 	 */
 	void createStreams(const OfferAnswerContext &params);
-	
+
 	/**
 	 * Set the "main" attribute to a stream index.
 	 * There can be only one main stream per type (audio, video, text...).
 	 * This attribute is useful to know whether certains tasks must be done on these streams.
 	 */
 	void setStreamMain(size_t index);
-	
+
 	/**
 	 * Once the streams are created, update the local media description to fill mainly
 	 * transport addresses, which are usually provided by the media layer.
@@ -341,7 +350,7 @@ public:
 	 * Used by signaling to notify that the session is confirmed (typically, when an ACK is received.
 	 */
 	virtual void sessionConfirmed(const OfferAnswerContext &params) override;
-	
+
 	/**
 	 * Stop streams.
 	 */
@@ -356,13 +365,13 @@ public:
 	void unjoinMixerSession();
 	Stream * getStream(size_t index);
 	Stream * getStream(int index){
-		return getStream((size_t) index);
+		return getStream(static_cast<size_t>(index));
 	}
 	/**
 	 * Lookup the main stream for a given stream type.
 	 */
 	Stream * lookupMainStream(SalStreamType type);
-	/* 
+	/*
 	 *Lookup a main stream for a given stream type, and casts it to the requested interface, passed in the template arguments.
 	 */
 	template <typename _interface>
@@ -410,7 +419,6 @@ public:
 	void clearStreams();
 	float getCurrentQuality();
 	float getAverageQuality();
-	const std::string &getAuthToken()const{ return mAuthToken; };
 	void setAuthTokenVerified(bool value);
 	size_t getActiveStreamsCount() const;
 	size_t size()const{ return mStreams.size(); }
@@ -419,10 +427,10 @@ public:
 	bool getAuthenticationTokenVerified() const{ return mAuthTokenVerified; }
 	const OfferAnswerContext & getCurrentOfferAnswerContext()const{ return mCurrentOfferAnswerState; };
 	CallSession::State getCurrentSessionState() const{ return mCurrentSessionState;};
-	
+
 	/*
 	 * Install a service that is shared accross all streams of a StreamsGroup.
-	 * 
+	 *
 	 */
 	template <typename _sharedServiceT>
 	void installSharedService(){
@@ -455,9 +463,9 @@ public:
 	LinphoneCore *getCCore()const;
 	Core & getCore()const;
 protected:
-	
+
 	int updateAllocatedAudioBandwidth (const PayloadType *pt, int maxbw);
-	int getVideoBandwidth (const SalMediaDescription *md, const SalStreamDescription *desc);
+	int getVideoBandwidth (const std::shared_ptr<SalMediaDescription> & md, const SalStreamDescription & desc);
 	void zrtpStarted(Stream *mainZrtpStream);
 	void propagateEncryptionChanged();
 	void authTokenReady(const std::string &token, bool verified);
@@ -472,7 +480,7 @@ private:
 	void detachMixers();
 	std::unique_ptr<IceService> mIceService;
 	std::vector<std::unique_ptr<Stream>> mStreams;
-	
+
 	// Upload bandwidth used by audio.
 	int mAudioBandwidth = 0;
 	// Zrtp auth token
@@ -496,4 +504,3 @@ inline std::ostream & operator<<(std::ostream & ostr, const StreamsGroup& sg){
 LINPHONE_END_NAMESPACE
 
 #endif
-

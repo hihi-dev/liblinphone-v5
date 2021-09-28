@@ -276,7 +276,7 @@ bool Imdn::isError (const shared_ptr<ChatMessage> &chatMessage) {
 // -----------------------------------------------------------------------------
 
 int Imdn::timerExpired (void *data, unsigned int revents) {
-	Imdn *d = reinterpret_cast<Imdn *>(data);
+	Imdn *d = static_cast<Imdn *>(data);
 	d->stopTimer();
 	d->send();
 	return BELLE_SIP_STOP;
@@ -372,7 +372,7 @@ void Imdn::startTimer () {
 	if (!timer)
 		timer = chatRoom->getCore()->getCCore()->sal->createTimer(timerExpired, this, duration, "imdn timeout");
 	else
-		belle_sip_source_set_timeout(timer, duration);
+		belle_sip_source_set_timeout_int64(timer, duration);
 	bgTask.start(chatRoom->getCore(), 1);
 }
 

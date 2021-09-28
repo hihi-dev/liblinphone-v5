@@ -201,7 +201,7 @@ void __linphone_friend_do_subscribe(LinphoneFriend *fr){
 			fr->outsub->release();
 			fr->outsub=NULL;
 		}
-		fr->outsub=new SalPresenceOp(lc->sal);
+		fr->outsub=new SalPresenceOp(lc->sal.get());
 		linphone_configure_op(lc,fr->outsub,addr,NULL,TRUE);
 		fr->outsub->subscribe(linphone_config_get_int(lc->config,"sip","subscribe_expires",600));
 		fr->subscribe_active=TRUE;
@@ -471,32 +471,39 @@ bctbx_list_t* linphone_friend_get_phone_numbers(const LinphoneFriend *lf) {
 bool_t linphone_friend_has_phone_number(const LinphoneFriend *lf, const char *phoneNumber) {
 	if (!lf || !phoneNumber) return FALSE;
 
-	LinphoneProxyConfig *cfg = linphone_core_get_default_proxy_config(lf->lc);
-	if (phoneNumber == NULL || !linphone_proxy_config_is_phone_number(cfg, phoneNumber)) {
+	LinphoneAccount *account = linphone_core_get_default_account(lf->lc); 
+	// Account can be null, both linphone_account_is_phone_number and linphone_account_normalize_phone_number can handle it
+	if (phoneNumber == NULL || !linphone_account_is_phone_number(account, phoneNumber)) {
 		ms_warning("Phone number [%s] isn't valid", phoneNumber);
 		return FALSE;
 	}
 
-	char *normalized_phone_number = linphone_proxy_config_normalize_phone_number(cfg, phoneNumber);
-
 	bool_t found = FALSE;
-	if (linphone_core_vcard_supported()) {
-		bctbx_list_t *numbers = linphone_friend_get_phone_numbers(lf);
-		bctbx_list_t *it = NULL;
-		for (it = numbers; it != NULL; it = bctbx_list_next(it)) {
-			const char *value = (const char *)bctbx_list_get_data(it);
-			char *normalized_value = linphone_proxy_config_normalize_phone_number(cfg, value);
-			if (normalized_value && strcmp(normalized_value, normalized_phone_number) == 0) {
-				found = TRUE;
-				ms_free(normalized_value);
-				break;
-			}
-			if (normalized_value) ms_free(normalized_value);
-		}
-		bctbx_list_free(numbers);
-	}
+	const bctbx_list_t *elem;
+	const bctbx_list_t *accounts = linphone_core_get_account_list(lf->lc);
+	for (elem = accounts; elem != NULL; elem = bctbx_list_next(elem)) {
+		account = (LinphoneAccount *)bctbx_list_get_data(elem);
 
-	if (normalized_phone_number) ms_free(normalized_phone_number);
+		char *normalized_phone_number = linphone_account_normalize_phone_number(account, phoneNumber);
+		if (linphone_core_vcard_supported()) {
+			bctbx_list_t *numbers = linphone_friend_get_phone_numbers(lf);
+			bctbx_list_t *it = NULL;
+			for (it = numbers; it != NULL; it = bctbx_list_next(it)) {
+				const char *value = (const char *)bctbx_list_get_data(it);
+				char *normalized_value = linphone_account_normalize_phone_number(account, value);
+				if (normalized_value && strcmp(normalized_value, normalized_phone_number) == 0) {
+					found = TRUE;
+					ms_free(normalized_value);
+					break;
+				}
+				if (normalized_value) ms_free(normalized_value);
+			}
+			bctbx_list_free(numbers);
+		}
+		if (normalized_phone_number) ms_free(normalized_phone_number);
+
+		if (found) break;
+	}
 
 	return found;
 }
@@ -551,7 +558,7 @@ void linphone_friend_notify(LinphoneFriend *lf, LinphonePresenceModel *presence)
 		}
 	}
 	for(elem=lf->insubs; elem!=NULL; elem=bctbx_list_next(elem)){
-		auto op = reinterpret_cast<SalPresenceOp *>(bctbx_list_get_data(elem));
+		auto op = static_cast<SalPresenceOp *>(bctbx_list_get_data(elem));
 		op->notifyPresence((SalPresenceModel *)presence);
 	}
 }
@@ -777,7 +784,7 @@ const LinphonePresenceModel * linphone_friend_get_presence_model(const LinphoneF
 
 	phones = linphone_friend_get_phone_numbers(const_lf);
 	for (it = phones; it!= NULL; it = it->next) {
-		presence = linphone_friend_get_presence_model_for_uri_or_tel(const_lf, reinterpret_cast<const char *>(it->data));
+		presence = linphone_friend_get_presence_model_for_uri_or_tel(const_lf, static_cast<const char *>(it->data));
 		if (presence) break;
 	}
 	bctbx_list_free(phones);
@@ -839,7 +846,7 @@ void linphone_friend_update_subscribes(LinphoneFriend *fr, bool_t only_when_regi
 		const LinphoneAddress *addr = linphone_friend_get_address(fr);
 		if (addr != NULL) {
 			LinphoneProxyConfig *cfg=linphone_core_lookup_known_proxy(fr->lc, addr);
-			if (cfg && cfg->state!=LinphoneRegistrationOk){
+			if (cfg && linphone_proxy_config_get_state(cfg)!=LinphoneRegistrationOk){
 				char *tmp=linphone_address_as_string(addr);
 				ms_message("Friend [%s] belongs to proxy config with identity [%s], but this one isn't registered. Subscription is suspended.",
 					tmp,linphone_proxy_config_get_identity(cfg));
@@ -1866,7 +1873,7 @@ int linphone_friend_get_capabilities(const LinphoneFriend *lf) {
 		capabilities |= linphone_presence_model_get_capabilities(presence);
 	}
 	for (it = phones; it!= NULL; it = it->next) {
-		presence = linphone_friend_get_presence_model_for_uri_or_tel(lf, reinterpret_cast<const char *>(it->data));
+		presence = linphone_friend_get_presence_model_for_uri_or_tel(lf, static_cast<const char *>(it->data));
 
 		if (!presence) continue;
 		capabilities |= linphone_presence_model_get_capabilities(presence);
@@ -1877,7 +1884,7 @@ int linphone_friend_get_capabilities(const LinphoneFriend *lf) {
 }
 
 bool_t linphone_friend_has_capability(const LinphoneFriend *lf, const LinphoneFriendCapability capability) {
-	return static_cast<bool_t>(linphone_friend_get_capabilities(lf) & capability);
+	return !!(linphone_friend_get_capabilities(lf) & capability);
 }
 
 bool_t linphone_friend_has_capability_with_version(const LinphoneFriend *lf, const LinphoneFriendCapability capability, float version) {
@@ -1897,7 +1904,7 @@ bool_t linphone_friend_has_capability_with_version(const LinphoneFriend *lf, con
 		if(linphone_presence_model_has_capability_with_version(presence, capability, version)) result = TRUE;
 	}
 	for (it = phones; it!= NULL; it = it->next) {
-		presence = linphone_friend_get_presence_model_for_uri_or_tel(lf, reinterpret_cast<const char *>(it->data));
+		presence = linphone_friend_get_presence_model_for_uri_or_tel(lf, static_cast<const char *>(it->data));
 
 		if (!presence) continue;
 		if(linphone_presence_model_has_capability_with_version(presence, capability, version)) result = TRUE;
@@ -1924,7 +1931,7 @@ bool_t linphone_friend_has_capability_with_version_or_more(const LinphoneFriend 
 		if (linphone_presence_model_has_capability_with_version_or_more(presence, capability, version)) result = TRUE;
 	}
 	for (it = phones; it!= NULL; it = it->next) {
-		presence = linphone_friend_get_presence_model_for_uri_or_tel(lf, reinterpret_cast<const char *>(it->data));
+		presence = linphone_friend_get_presence_model_for_uri_or_tel(lf, static_cast<const char *>(it->data));
 
 		if (!presence) continue;
 		if (linphone_presence_model_has_capability_with_version_or_more(presence, capability, version)) result = TRUE;
@@ -1952,7 +1959,7 @@ float linphone_friend_get_capability_version(const LinphoneFriend *lf, const Lin
 		if (presence_version > version) version = presence_version;
 	}
 	for (it = phones; it!= NULL; it = it->next) {
-		presence = linphone_friend_get_presence_model_for_uri_or_tel(lf, reinterpret_cast<const char *>(it->data));
+		presence = linphone_friend_get_presence_model_for_uri_or_tel(lf, static_cast<const char *>(it->data));
 
 		if (!presence) continue;
 		float presence_version = linphone_presence_model_get_capability_version(presence, capability);

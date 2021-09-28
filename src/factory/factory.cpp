@@ -265,6 +265,11 @@ LinphoneChatMessageCbs* Factory::createChatMessageCbs() const {
 	return linphone_chat_message_cbs_new();
 }
 
+LinphoneMagicSearchCbs* Factory::createMagicSearchCbs() const {
+	return linphone_magic_search_cbs_new();
+}
+
+
 LinphoneVcard* Factory::createVcard() const {
 	return _linphone_vcard_new();
 }
@@ -278,7 +283,7 @@ LinphoneVideoDefinition*  Factory::createVideoDefinitionFromName(const char *nam
 	unsigned int width = 0;
 	unsigned int height = 0;
 	LinphoneVideoDefinition *vdef = findSupportedVideoDefinitionByName(name);
-	if (vdef != NULL) return vdef;
+	if (vdef != NULL) return linphone_video_definition_clone(vdef);
 	if (sscanf(name, "%ux%u", &width, &height) == 2) {
 		return linphone_video_definition_new(width, height, NULL);
 	}
@@ -473,6 +478,10 @@ LinphoneTunnelConfig* Factory::createTunnelConfig() const {
 	return linphone_tunnel_config_new();
 }
 
+LinphoneAccountCbs *Factory::createAccountCbs() const {
+	return linphone_account_cbs_new();
+}
+
 LinphoneLoggingServiceCbs* Factory::createLoggingServiceCbs() const {
 	return linphone_logging_service_cbs_new();
 }
@@ -571,7 +580,7 @@ void Factory::setVfsEncryption(const uint16_t encryptionModule, const uint8_t *s
 
 	// Associate the VfsEncryption class callback
 	bctoolbox::VfsEncryption::openCallbackSet([module, this](bctoolbox::VfsEncryption &settings) {
-		bctbx_message("Encrypted VFS: Open file %s, encryption is set to %s file. Current file's encryption module is %s", settings.filenameGet().data(), encryptionSuiteString(module).data(), encryptionSuiteString(settings.encryptionSuiteGet()).data());
+		bctbx_debug("Encrypted VFS: Open file %s, encryption is set to %s file. Current file's encryption module is %s", settings.filenameGet().data(), encryptionSuiteString(module).data(), encryptionSuiteString(settings.encryptionSuiteGet()).data());
 
 		settings.encryptionSuiteSet(module); // This call will migrate plain files to encrypted ones if needed
 		if (module!=bctoolbox::EncryptionSuite::plain) { // do not set keys for plain module
@@ -579,6 +588,10 @@ void Factory::setVfsEncryption(const uint16_t encryptionModule, const uint8_t *s
 			settings.secretMaterialSet(*mEvfsMasterKey);
 		}
 	});
+}
+
+LinphoneDigestAuthenticationPolicy * Factory::createDigestAuthenticationPolicy()const{
+	return linphone_digest_authentication_policy_new();
 }
 
 Factory::~Factory (){

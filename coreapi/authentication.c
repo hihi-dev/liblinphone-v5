@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2019 Belledonne Communications SARL.
+ * Copyright (c) 2010-2021 Belledonne Communications SARL.
  *
  * This file is part of Liblinphone.
  *
@@ -17,28 +17,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- */
-
 #include "linphone/core.h"
 #include "linphone/lpconfig.h"
 #include "sal/sal.h"
 #include "linphone/api/c-auth-info.h"
 #include "c-wrapper/c-wrapper.h"
 #include "auth-info/auth-info.h"
+#include "account/account.h"
 
 
 // TODO: From coreapi. Remove me later.
@@ -81,7 +66,7 @@ static bool_t realm_match(const char *realm1, const char *realm2){
 /* Check if the LinphoneAuthInfo candidate is compatible with the requested algorithm. */
 static bool_t check_algorithm_compatibility(const LinphoneAuthInfo *ai, const char *algorithm){
 	const char *ai_algorithm = linphone_auth_info_get_algorithm(ai);
-	
+
 	if (algorithm == NULL) return TRUE;
 	if (linphone_auth_info_get_password(ai) != NULL){
 		/* We have the clear text password, so if the user didn't requested a specific algorithm, we can satisfy all algorithms.*/
@@ -103,9 +88,9 @@ static const LinphoneAuthInfo *find_auth_info(LinphoneCore *lc, const char *user
 	for (elem=lc->auth_info;elem!=NULL;elem=elem->next) {
 		LinphoneAuthInfo *pinfo = (LinphoneAuthInfo*)elem->data;
 
-		if (username && linphone_auth_info_get_username(pinfo) && strcmp(username, linphone_auth_info_get_username(pinfo))==0) 
+		if (username && linphone_auth_info_get_username(pinfo) && strcmp(username, linphone_auth_info_get_username(pinfo))==0)
 		{
-			
+
 			if (!check_algorithm_compatibility(pinfo, algorithm)) {
 				continue;
 			}
@@ -175,7 +160,7 @@ const LinphoneAuthInfo *_linphone_core_find_auth_info(LinphoneCore *lc, const ch
 	if (ai==NULL){
 		ai=find_auth_info(lc,username,NULL,NULL, algorithm, ignore_realm);
 	}
-	
+
 	if (ai) ms_message("linphone_core_find_auth_info(): returning auth info username=%s, realm=%s", linphone_auth_info_get_username(ai) ? linphone_auth_info_get_username(ai) : "", linphone_auth_info_get_realm(ai) ? linphone_auth_info_get_realm(ai) : "");
 	return ai;
 }
@@ -212,7 +197,7 @@ static void write_auth_infos(LinphoneCore *lc){
 }
 
 LinphoneAuthInfo *linphone_core_create_auth_info(LinphoneCore *lc, const char *username, const char *userid, const char *passwd, const char *ha1, const char *realm, const char *domain) {
-	return linphone_auth_info_new(username, userid, passwd, ha1, realm, domain);	
+	return linphone_auth_info_new(username, userid, passwd, ha1, realm, domain);
 }
 
 void linphone_core_add_auth_info(LinphoneCore *lc, const LinphoneAuthInfo *info){
@@ -241,11 +226,11 @@ void linphone_core_add_auth_info(LinphoneCore *lc, const LinphoneAuthInfo *info)
 		ai=(LinphoneAuthInfo*)_linphone_core_find_auth_info(lc, req_sai->realm, req_sai->username, req_sai->domain, req_sai->algorithm, FALSE);
 		if (ai){
 			SalAuthInfo sai;
-			bctbx_list_t* proxy;
+			bctbx_list_t* account;
 			sai.username = (char *) linphone_auth_info_get_username(ai);
 			sai.userid = (char *)linphone_auth_info_get_userid(ai);
 			sai.realm = (char *) linphone_auth_info_get_realm(ai);
-			sai.password = (char *) linphone_auth_info_get_passwd(ai);
+			sai.password = (char *) linphone_auth_info_get_password(ai);
 			sai.ha1 = (char *)linphone_auth_info_get_ha1(ai);
 			sai.algorithm = (char *)linphone_auth_info_get_algorithm(ai);
 			if (linphone_auth_info_get_tls_cert(ai) && linphone_auth_info_get_tls_key(ai)) {
@@ -255,10 +240,10 @@ void linphone_core_add_auth_info(LinphoneCore *lc, const LinphoneAuthInfo *info)
 				sal_certificates_chain_parse_file(&sai, linphone_auth_info_get_tls_cert_path(ai), SAL_CERTIFICATE_RAW_FORMAT_PEM);
 				sal_signing_key_parse_file(&sai, linphone_auth_info_get_tls_key_path(ai), "");
 			}
-			/*proxy case*/
-			for (proxy=(bctbx_list_t*)linphone_core_get_proxy_config_list(lc);proxy!=NULL;proxy=proxy->next) {
-				if (proxy->data == op->getUserPointer()) {
-					linphone_proxy_config_set_state((LinphoneProxyConfig*)(proxy->data),LinphoneRegistrationProgress,"Authentication...");
+			/*account case*/
+			for (account=(bctbx_list_t*)linphone_core_get_account_list(lc);account!=NULL;account=account->next) {
+				if (account->data == op->getUserPointer()) {
+					LinphonePrivate::Account::toCpp((LinphoneAccount *)account->data)->setState(LinphoneRegistrationProgress, "Authentication...");
 					break;
 				}
 			}
@@ -402,4 +387,17 @@ void linphone_core_fill_belle_sip_auth_event(LinphoneCore *lc, belle_sip_auth_ev
 			lError() << "Connection gets an auth event of unexpected type";
 		break;
 	}
+}
+
+void linphone_core_set_digest_authentication_policy(LinphoneCore *core, LinphoneDigestAuthenticationPolicy *policy){
+	belle_sip_stack_t *stack = reinterpret_cast<belle_sip_stack_t *>(core->sal->getStackImpl());
+	belle_sip_stack_set_digest_authentication_policy(stack, (belle_sip_digest_authentication_policy_t*) policy);
+	if (linphone_core_ready(core)){
+		linphone_digest_authentication_policy_save(policy, core->config);
+	}
+}
+
+const LinphoneDigestAuthenticationPolicy * linphone_core_get_digest_authentication_policy(const LinphoneCore *core){
+	belle_sip_stack_t *stack = reinterpret_cast<belle_sip_stack_t *>(core->sal->getStackImpl());
+	return (const LinphoneDigestAuthenticationPolicy*)belle_sip_stack_get_digest_authentication_policy(stack);
 }

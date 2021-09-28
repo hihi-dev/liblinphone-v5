@@ -25,11 +25,14 @@
 #include "sal/refer-op.h"
 #include "sal/event-op.h"
 #include "sal/message-op.h"
+#include "sal/sal_media_description.h"
 #include "bellesip_sal/sal_impl.h"
 #include "tester_utils.h"
 #include "private.h"
+#include "bctoolbox/utils.hh"
 #include "bctoolbox/crypto.hh"
 
+#include "account/account.h"
 #include "c-wrapper/internal/c-tools.h"
 
 using namespace std;
@@ -592,7 +595,7 @@ void Sal::makeSupportedHeader () {
 }
 
 void Sal::setSupportedTags (const string &tags) {
-	vector<string> splittedTags = Utils::split(tags, ",");
+	vector<string> splittedTags = bctoolbox::Utils::split(tags, ",");
 	mSupportedTags.clear();
 	for (const auto &tag : splittedTags)
 		mSupportedTags.push_back(Utils::trim(tag));
@@ -858,11 +861,14 @@ belle_sip_response_t *Sal::createResponseFromRequest (belle_sip_request_t *reque
 	return response;
 }
 
-int Sal::findCryptoIndexFromTag (const SalSrtpCryptoAlgo crypto[], unsigned char tag) {
-	for (int i = 0; i < SAL_CRYPTO_ALGO_MAX; i++) {
-		if (crypto[i].tag == tag)
-			return i;
+int Sal::findCryptoIndexFromTag (const std::vector<SalSrtpCryptoAlgo> & crypto, unsigned char tag) {
+	for (size_t i = 0; i < crypto.size(); i++) {
+		if (crypto[i].tag == tag) {
+			lInfo() << "Found crypto algorithm matching tag " << (int)tag << ": algorithm " << crypto[i].algo << " master key " << crypto[i].master_key;
+			return (int)i;
+		}
 	}
+	lInfo() << "Unable to find crypto algorithm matching tag " << (int)tag;
 	return -1;
 }
 
@@ -942,11 +948,11 @@ using namespace LinphonePrivate;
 extern "C" {
 
 LINPHONE_PUBLIC Sal *linphone_core_get_sal (const LinphoneCore *lc) {
-	return lc->sal;
+	return lc->sal.get();
 }
 
 LINPHONE_PUBLIC SalOp *linphone_proxy_config_get_sal_op (const LinphoneProxyConfig *cfg) {
-	return cfg->op;
+	return Account::toCpp(cfg->account)->getOp();
 }
 
 LINPHONE_PUBLIC SalOp *linphone_call_get_op_as_sal_op (const LinphoneCall *call) {
@@ -1051,13 +1057,6 @@ LINPHONE_PUBLIC void sal_call_set_sdp_handling (SalOp *op, SalOpSDPHandling hand
 	auto callOp = dynamic_cast<SalCallOp *>(op);
 	if (callOp)
 		callOp->setSdpHandling(handling);
-}
-
-LINPHONE_PUBLIC SalMediaDescription *sal_call_get_final_media_description (SalOp *op) {
-	auto callOp = dynamic_cast<SalCallOp *>(op);
-	if (!callOp)
-		return nullptr;
-	return callOp->getFinalMediaDescription();
 }
 
 LINPHONE_PUBLIC const char *sal_call_get_local_tag (SalOp *op) {

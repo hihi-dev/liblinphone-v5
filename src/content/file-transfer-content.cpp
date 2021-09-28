@@ -19,10 +19,13 @@
 
 // TODO: Remove me later.
 #include "linphone/core.h"
+#include "linphone/utils/utils.h"
 
 #include "content-p.h"
 #include "file-transfer-content.h"
 #include "bctoolbox/crypto.h"
+
+#include <algorithm>
 
 // =============================================================================
 
@@ -41,6 +44,7 @@ public:
 	size_t fileSize = 0;
 	std::vector<char> fileKey;
 	std::vector<char> fileAuthTag;
+	ContentType fileContentType;
 	~FileTransferContentPrivate() {
 		if (!fileKey.empty()) {
 			bctbx_clean(fileKey.data(), fileKey.size());
@@ -64,6 +68,7 @@ FileTransferContent::FileTransferContent (const FileTransferContent &other) : Co
 	d->fileSize = other.getFileSize();
 	d->fileKey = other.getFileKey();
 	d->fileAuthTag = other.getFileAuthTag();
+	d->fileContentType = other.getFileContentType();
 }
 
 FileTransferContent::FileTransferContent (FileTransferContent &&other) : Content(*new FileTransferContentPrivate) {
@@ -76,6 +81,7 @@ FileTransferContent::FileTransferContent (FileTransferContent &&other) : Content
 	d->fileSize = move(other.getPrivate()->fileSize);
 	d->fileKey = move(other.getPrivate()->fileKey);
 	d->fileAuthTag = move(other.getPrivate()->fileAuthTag);
+	d->fileContentType = move(other.getPrivate()->fileContentType);
 }
 
 FileTransferContent &FileTransferContent::operator= (const FileTransferContent &other) {
@@ -89,6 +95,7 @@ FileTransferContent &FileTransferContent::operator= (const FileTransferContent &
 		d->fileSize = other.getFileSize();
 		d->fileKey = other.getFileKey();
 		d->fileAuthTag = other.getFileAuthTag();
+		d->fileContentType = other.getFileContentType();
 	}
 
 	return *this;
@@ -104,6 +111,7 @@ FileTransferContent &FileTransferContent::operator= (FileTransferContent &&other
 	d->fileSize = move(other.getPrivate()->fileSize);
 	d->fileKey = move(other.getPrivate()->fileKey);
 	d->fileAuthTag = move(other.getPrivate()->fileAuthTag);
+	d->fileContentType = move(other.getPrivate()->fileContentType);
 
 	return *this;
 }
@@ -114,12 +122,14 @@ bool FileTransferContent::operator== (const FileTransferContent &other) const {
 		d->fileName == other.getFileName() &&
 		d->fileUrl == other.getFileUrl() &&
 		d->filePath == other.getFilePath() &&
-		d->fileSize == other.getFileSize();
+		d->fileSize == other.getFileSize() &&
+		d->fileContentType == other.getFileContentType();
 }
 
 void FileTransferContent::setFileName (const string &name) {
 	L_D();
-	d->fileName = name;
+
+	d->fileName = Utils::normalizeFilename(name);
 }
 
 const string &FileTransferContent::getFileName () const {
@@ -197,12 +207,32 @@ size_t FileTransferContent::getFileAuthTagSize() const {
 	return d->fileAuthTag.size();
 }
 
+void FileTransferContent::setFileContentType(const ContentType& contentType) {
+	L_D();
+	d->fileContentType = contentType;
+}
+
+const ContentType& FileTransferContent::getFileContentType () const {
+	L_D();
+	return d->fileContentType;
+}
+
 bool FileTransferContent::isFile () const {
 	return false;
 }
 
 bool FileTransferContent::isFileTransfer () const {
 	return true;
+}
+
+bool FileTransferContent::isEncrypted () const {
+	L_D();
+	return isFileEncrypted(d->filePath);
+}
+
+const string FileTransferContent::getPlainFilePath() const {
+	L_D();
+	return getPlainFilePathFromEncryptedFile(d->filePath);
 }
 
 LINPHONE_END_NAMESPACE

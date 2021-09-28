@@ -81,6 +81,30 @@
 typedef struct _LinphoneAuthInfo LinphoneAuthInfo;
 
 // -----------------------------------------------------------------------------
+// Account.
+// -----------------------------------------------------------------------------
+
+/**
+ * Object that represents a Linphone Account.
+ * This object replaces the deprecated #LinphoneProxyConfig.
+ * Use a #LinphoneAccountParams object to configure it.
+ * @ingroup account
+ */
+typedef struct _LinphoneAccount LinphoneAccount;
+
+/**
+ * Object that is used to set the different parameters of a #LinphoneAccount.
+ * @ingroup account
+ */
+typedef struct _LinphoneAccountParams LinphoneAccountParams;
+
+/**
+ * An object to handle the callbacks for the handling of #LinphoneAccount objects.
+ * @ingroup account
+ */
+typedef struct _LinphoneAccountCbs LinphoneAccountCbs;
+
+// -----------------------------------------------------------------------------
 // Address.
 // -----------------------------------------------------------------------------
 
@@ -105,14 +129,23 @@ typedef struct _LinphoneAddress LinphoneAddress;
 // -----------------------------------------------------------------------------
 
 /**
- * @brief TODO
- * @ingroup conferencing
+ * @brief A conference is the object that allow to make calls when there are 2 or more participants
+ *
+ * To create (or find) a #LinphoneConference, you first need a #LinphoneConferenceParams object.
+ * linphone_core_create_conference_with_params() allows you to create a conference.
+ * A conference is uniquely identified by a conference address, meaning you can
+ * have more than one conference between two accounts. As of now, each #LinphoneCore can host only 1 conference but it can be part of many conferences as a remote participant.
+ * To find a conference among those a core is part of, you can call linphone_core_search_conference().
+ * @ingroup conference
  */
 typedef struct _LinphoneConference LinphoneConference;
 
 /**
- * @brief TODO
- * @ingroup conferencing
+ * @brief Object defining parameters for a #LinphoneConference.
+ * 
+ * Can be created by calling function linphone_core_create_conference_params().
+ * 
+ * @ingroup conference
  */
 typedef struct _LinphoneConferenceParams LinphoneConferenceParams;
 
@@ -121,7 +154,7 @@ typedef struct _LinphoneConferenceParams LinphoneConferenceParams;
  *
  * Use linphone_factory_create_conference_cbs() to create an instance. 
  * Then pass the object to a #LinphoneConference instance through linphone_conference_add_callbacks().
- * @ingroup conferencing
+ * @ingroup conference
  */
 typedef struct _LinphoneConferenceCbs LinphoneConferenceCbs;
 
@@ -173,9 +206,11 @@ typedef struct _LinphoneParticipantDeviceIdentity LinphoneParticipantDeviceIdent
 /**
  * @brief This object represents a call issued or received by the #LinphoneCore.
  * 
- * You may have multiple calls at the same time, but only one will be 
- * in #LinphoneCallStateStreamsRunning at any time unless they are merged into a #LinphoneConference,
- * others will be paused.
+ * Linphone only allows at most one active call at any given time and it will be
+ * in #LinphoneCallStateStreamsRunning. However, if the core is locally hosting a #LinphoneConference,
+ * you may have some or all the calls in the conference in #LinphoneCallStateStreamsRunning
+ * as well as an additional active call outside of the conference in #LinphoneCallStateStreamsRunning
+ * if the local participant of the #LinphoneConference is not part of it.
  * 
  * You can get the #LinphoneCallState of the call using linphone_call_get_state(),
  * it's current #LinphoneCallParams with linphone_call_get_current_params() and 
@@ -321,16 +356,6 @@ typedef int LinphoneChatRoomCapabilitiesMask;
  */
 typedef struct _LinphoneChatRoomCbs LinphoneChatRoomCbs;
 
-/**
- * @brief Object holding chat message data received by a push notification on iOS platform only.
- * 
- * This object is a subset of #LinphoneChatMessage, so only a few methods of it's parent are available,
- * like linphone_push_notification_message_get_text_content() and linphone_push_notification_message_get_subject(),
- * just enough to be able to build a notification to show the user.
- * @ingroup chatroom
-**/
-typedef struct _LinphonePushNotificationMessage LinphonePushNotificationMessage;
-
 // -----------------------------------------------------------------------------
 // EventLog.
 // -----------------------------------------------------------------------------
@@ -372,6 +397,25 @@ typedef struct _LinphoneContent LinphoneContent;
  */
 typedef struct _LinphoneDialPlan LinphoneDialPlan;
 
+/**
+ * @brief Object holding chat message data received by a push notification on iOS platform only.
+ *
+ * This object is a subset of #LinphoneChatMessage, so only a few methods of it's parent are available,
+ * like linphone_push_notification_message_get_text_content() and linphone_push_notification_message_get_subject(),
+ * just enough to be able to build a notification to show the user.
+ * @ingroup misc
+**/
+typedef struct _LinphonePushNotificationMessage LinphonePushNotificationMessage;
+
+/**
+ * @brief Object holding push notification config that will be set in the contact URI parameters of the Contact header in the REGISTER,
+ * if the #LinphoneAccountParams is configured to allow push notifications, see linphone_account_params_set_push_notification_allowed().
+ * 
+ * This object can be accessed through the #LinphoneAccountParams object, which can be obtained from your #LinphoneAccount object.
+ * @ingroup account
+**/
+typedef struct _LinphonePushNotificationConfig LinphonePushNotificationConfig;
+
 // -----------------------------------------------------------------------------
 // Search.
 // -----------------------------------------------------------------------------
@@ -383,10 +427,25 @@ typedef struct _LinphoneDialPlan LinphoneDialPlan;
 typedef struct _LinphoneMagicSearch LinphoneMagicSearch;
 
 /**
+ * @brief A #LinphoneMagicSearchCbs is used to do specifics searchs
+ * @ingroup misc
+ */
+typedef struct _LinphoneMagicSearchCbs LinphoneMagicSearchCbs;
+
+/**
  * @brief The LinphoneSearchResult object represents a result of a search
  * @ingroup misc
  */
 typedef struct _LinphoneSearchResult LinphoneSearchResult;
+
+// -----------------------------------------------------------------------------
+// Digest authentication policy.
+// -----------------------------------------------------------------------------
+/**
+ * @brief The LinphoneDigestAuthenticationPolicy holds parameters relative to digest authentication procedures.
+ * @ingroup misc
+ */
+typedef struct _LinphoneDigestAuthenticationPolicy LinphoneDigestAuthenticationPolicy;
 
 #ifdef __cplusplus
 	}

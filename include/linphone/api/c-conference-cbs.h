@@ -30,7 +30,7 @@
 #endif // ifdef __cplusplus
 
 /**
- * @addtogroup conferencing
+ * @addtogroup conference
  * @{
  */
 
@@ -158,6 +158,20 @@ LINPHONE_PUBLIC LinphoneConferenceCbsSubjectChangedCb linphone_conference_cbs_ge
  * @param[in] cb The subject changed callback to be used.
  */
 LINPHONE_PUBLIC void linphone_conference_cbs_set_subject_changed (LinphoneConferenceCbs *cbs, LinphoneConferenceCbsSubjectChangedCb cb);
+
+/**
+ * Get the audio device changed callback.
+ * @param[in] cbs #LinphoneConferenceCbs object.
+ * @return The current audio device changed callback.
+ */
+LINPHONE_PUBLIC LinphoneConferenceCbsAudioDeviceChangedCb linphone_conference_cbs_get_audio_device_changed (const LinphoneConferenceCbs *cbs);
+
+/**
+ * Set the audio device changed callback.
+ * @param[in] cbs #LinphoneConferenceCbs object.
+ * @param[in] cb The audio device changed callback to be used.
+ */
+LINPHONE_PUBLIC void linphone_conference_cbs_set_audio_device_changed (LinphoneConferenceCbs *cbs, LinphoneConferenceCbsAudioDeviceChangedCb cb);
 
 /**
  * @}

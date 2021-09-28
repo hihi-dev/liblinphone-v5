@@ -54,19 +54,6 @@ bool Utils::iequals (const string &a, const string &b) {
 
 // -----------------------------------------------------------------------------
 
-vector<string> Utils::split (const string &str, const string &delimiter) {
-	vector<string> out;
-
-	size_t pos = 0, oldPos = 0;
-	for (; (pos = str.find(delimiter, pos)) != string::npos; oldPos = pos + delimiter.length(), pos = oldPos)
-		out.push_back(str.substr(oldPos, pos - oldPos));
-	out.push_back(str.substr(oldPos));
-
-	return out;
-}
-
-// -----------------------------------------------------------------------------
-
 #ifndef __ANDROID__
 #define TO_STRING_IMPL(TYPE) \
 	string Utils::toString (TYPE val) { \
@@ -153,9 +140,11 @@ string Utils::stringToLower (const string &str) {
 
 // -----------------------------------------------------------------------------
 
-char *Utils::utf8ToChar (uint32_t ic) {
-	char *result = new char[5];
-	int size = 0;
+string Utils::unicodeToUtf8 (uint32_t ic) {
+	string result;
+	
+	result.resize(5);
+	size_t size = 0;
 	if (ic < 0x80) {
 		result[0] = static_cast<char>(ic);
 		size = 1;
@@ -175,14 +164,17 @@ char *Utils::utf8ToChar (uint32_t ic) {
 		result[0] = static_cast<char>(0xF0 + ((ic >> 18) & 0x7));
 		size = 4;
 	}
-	result[size] = '\0';
+	result.resize(size);
 	return result;
 }
 
-std::string Utils::utf8ToString (const std::vector<uint32_t>& chars) {
+/*
+ * TODO: not optmized at all. Good enough for small vectors.
+ */
+std::string Utils::unicodeToUtf8 (const std::vector<uint32_t>& chars) {
 	std::ostringstream ss;
 	for (auto character : chars) {
-		ss << Utils::utf8ToChar(character);
+		ss << Utils::unicodeToUtf8(character);
 	}
 	return ss.str();
 }
@@ -191,6 +183,22 @@ string Utils::trim (const string &str) {
 	auto itFront = find_if_not(str.begin(), str.end(), [] (int c) { return isspace(c); });
 	auto itBack = find_if_not(str.rbegin(), str.rend(), [] (int c) { return isspace(c); }).base();
 	return (itBack <= itFront ? string() : string(itFront, itBack));
+}
+
+std::string Utils::normalizeFilename(const std::string& str){
+	std::string result(str);
+#ifdef _WIN32
+	const std::string illegalCharacters = "\\/:*\"<>|";
+#elif defined(__APPLE__)
+	const std::string illegalCharacters = ":/";
+#else
+	const std::string illegalCharacters = "/";
+#endif
+// Invisible and illegal characters should not be part of a filename
+	result.erase(std::remove_if(result.begin(), result.end(), [illegalCharacters](const unsigned char& c){
+		return c < ' ' || illegalCharacters.find((char)c) != std::string::npos;
+	}), result.end());
+	return result;
 }
 
 // -----------------------------------------------------------------------------

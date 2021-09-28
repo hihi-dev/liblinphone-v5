@@ -22,7 +22,7 @@
 
 #include <sqlite3.h>
 
-#include "account_creator_private.h"
+#include "account_creator/private.h"
 #include "linphone/core.h"
 #include "linphone/tunnel.h"
 #include "c-wrapper/internal/c-sal.h"
@@ -35,6 +35,14 @@ typedef struct _SalOp SalOp;
 #endif
 
 typedef struct _LinphoneQualityReporting LinphoneQualityReporting;
+
+#ifdef __cplusplus
+LINPHONE_BEGIN_NAMESPACE
+	class SalMediaDescription;
+LINPHONE_END_NAMESPACE
+LINPHONE_PUBLIC LinphonePrivate::SalMediaDescription *_linphone_call_get_local_desc (const LinphoneCall *call);
+LINPHONE_PUBLIC LinphonePrivate::SalMediaDescription *_linphone_call_get_result_desc (const LinphoneCall *call);
+#endif
 
 typedef enum _LinphoneProxyConfigAddressComparisonResult{
 	LinphoneProxyConfigAddressDifferent,
@@ -55,6 +63,9 @@ typedef struct _LinphoneCoreToneManagerStats {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Required to check SRTP cryptio suite match during call
+LINPHONE_PUBLIC const MSCryptoSuite * linphone_core_get_srtp_crypto_suites_array(LinphoneCore *lc);
 
 LINPHONE_PUBLIC LinphoneVcardContext *linphone_core_get_vcard_context(const LinphoneCore *lc);
 LINPHONE_PUBLIC bool_t linphone_core_rtcp_enabled(const LinphoneCore *lc);
@@ -84,6 +95,9 @@ LINPHONE_PUBLIC const MSList *linphone_core_get_call_history(LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_core_delete_call_history(LinphoneCore *lc);
 LINPHONE_PUBLIC int linphone_core_get_call_history_size(LinphoneCore *lc);
 
+LINPHONE_PUBLIC void linphone_core_set_keep_stream_direction_for_rejected_stream(LinphoneCore *lc, bool_t yesno);
+LINPHONE_PUBLIC bool_t linphone_core_get_keep_stream_direction_for_rejected_stream(LinphoneCore *lc);
+
 LINPHONE_DEPRECATED LINPHONE_PUBLIC void linphone_core_cbs_set_auth_info_requested(LinphoneCoreCbs *cbs, LinphoneCoreAuthInfoRequestedCb cb);
 
 LINPHONE_PUBLIC LinphoneProxyConfigAddressComparisonResult linphone_proxy_config_is_server_config_changed(const LinphoneProxyConfig* obj);
@@ -94,12 +108,12 @@ LINPHONE_PUBLIC VideoStream * linphone_core_get_preview_stream(LinphoneCore *cal
 LINPHONE_PUBLIC bool_t linphone_call_get_all_muted(const LinphoneCall *call);
 LINPHONE_PUBLIC LinphoneProxyConfig * linphone_call_get_dest_proxy(const LinphoneCall *call);
 LINPHONE_PUBLIC unsigned int _linphone_call_get_nb_audio_starts (const LinphoneCall *call);
+LINPHONE_PUBLIC unsigned int _linphone_call_get_nb_audio_stops (const LinphoneCall *call);
 LINPHONE_PUBLIC unsigned int _linphone_call_get_nb_video_starts (const LinphoneCall *call);
 LINPHONE_PUBLIC unsigned int _linphone_call_get_nb_text_starts (const LinphoneCall *call);
 LINPHONE_PUBLIC belle_sip_source_t *_linphone_call_get_dtmf_timer (const LinphoneCall *call);
 LINPHONE_PUBLIC bool_t _linphone_call_has_dtmf_sequence (const LinphoneCall *call);
-LINPHONE_PUBLIC SalMediaDescription *_linphone_call_get_local_desc (const LinphoneCall *call);
-LINPHONE_PUBLIC SalMediaDescription *_linphone_call_get_result_desc (const LinphoneCall *call);
+
 LINPHONE_PUBLIC MSWebCam *_linphone_call_get_video_device (const LinphoneCall *call);
 LINPHONE_PUBLIC void _linphone_call_add_local_desc_changed_flag (LinphoneCall *call, int flag);
 LINPHONE_PUBLIC int _linphone_call_get_main_audio_stream_index (const LinphoneCall *call);
@@ -144,22 +158,6 @@ LINPHONE_PUBLIC char *linphone_core_get_device_identity(LinphoneCore *lc);
 LINPHONE_PUBLIC LinphoneCoreToneManagerStats *linphone_core_get_tone_manager_stats(LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_core_reset_tone_manager_stats(LinphoneCore *lc);
 LINPHONE_PUBLIC const char *linphone_core_get_tone_file(LinphoneCore *lc, LinphoneToneID id);
-
-/**
- * Send an XML-RPC request to delete a Linphone account.
- * @param[in] creator LinphoneAccountCreator object
- * @return LinphoneAccountCreatorStatusRequestOk if the request has been sent, LinphoneAccountCreatorStatusRequestFailed otherwise
- * @donotwrap Exists for tests purposes only
-**/
-LINPHONE_PUBLIC LinphoneAccountCreatorStatus linphone_account_creator_delete_account_linphone(LinphoneAccountCreator *creator);
-
-/**
- * Send an XML-RPC request to get the confirmation key of a Linphone account.
- * @param[in] creator LinphoneAccountCreator object
- * @return LinphoneAccountCreatorStatusRequestOk if the request has been sent, LinphoneAccountCreatorStatusRequestFailed otherwise
- * @donotwrap Exists for tests purposes only
-**/
-LINPHONE_PUBLIC LinphoneAccountCreatorStatus linphone_account_creator_get_confirmation_key_linphone(LinphoneAccountCreator *creator);
 
 /**
  * Send a request to delete an account on server.
@@ -257,7 +255,6 @@ LINPHONE_PUBLIC bool_t sal_transport_available(Sal *ctx, SalTransport t);
 LINPHONE_PUBLIC const SalErrorInfo *sal_op_get_error_info(const SalOp *op);
 LINPHONE_PUBLIC bool_t sal_call_dialog_request_pending(const SalOp *op);
 LINPHONE_PUBLIC void sal_call_set_sdp_handling(SalOp *h, SalOpSDPHandling handling);
-LINPHONE_PUBLIC SalMediaDescription * sal_call_get_final_media_description(SalOp *h);
 LINPHONE_PUBLIC const char *sal_call_get_local_tag (SalOp *op);
 LINPHONE_PUBLIC const char *sal_call_get_remote_tag (SalOp *op);
 LINPHONE_PUBLIC void sal_call_set_replaces (SalOp *op, const char *callId, const char *fromTag, const char *toTag);

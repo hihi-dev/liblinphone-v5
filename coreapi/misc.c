@@ -206,7 +206,7 @@ int linphone_core_get_edge_ptime(LinphoneCore *lc){
 void linphone_core_resolve_stun_server(LinphoneCore *lc) {
 	auto proxies = linphone_core_get_proxy_config_list(lc);
 	for (auto item = proxies; item; item = bctbx_list_next(item)) {
-		auto proxy = reinterpret_cast<LinphoneProxyConfig *>(bctbx_list_get_data(item));
+		auto proxy = static_cast<LinphoneProxyConfig *>(bctbx_list_get_data(item));
 		auto policy = linphone_proxy_config_get_nat_policy(proxy);
 		if (policy)
 			linphone_nat_policy_resolve_stun_server(policy);
@@ -254,11 +254,10 @@ const char *linphone_ice_state_to_string(LinphoneIceState state){
 	return "invalid";
 }
 
-bool_t linphone_core_media_description_contains_video_stream(const SalMediaDescription *md){
-	int i;
+bool_t linphone_core_media_description_contains_video_stream(const LinphonePrivate::SalMediaDescription *md){
 
-	for (i = 0; md && i < md->nb_streams; i++) {
-		if (md->streams[i].type == SalVideo && md->streams[i].rtp_port!=0)
+	for (const auto & stream : md->streams) {
+		if (stream.type == SalVideo && stream.rtp_port!=0)
 			return TRUE;
 	}
 	return FALSE;
@@ -379,6 +378,8 @@ SalReason linphone_reason_to_sal(LinphoneReason reason){
 			return SalReasonServerTimeout;
 		case LinphoneReasonNotAnswered:
 			return SalReasonRequestTimeout;
+		case LinphoneReasonTransferred:// It is not really used by Sal. This reason coming from managing tones on transferred call.
+			return SalReasonNone;
 		case LinphoneReasonUnknown:
 			return SalReasonUnknown;
 	}
@@ -598,12 +599,12 @@ void linphone_core_set_tone(LinphoneCore *lc, LinphoneToneID id, const char *aud
 	L_GET_PRIVATE_FROM_C_OBJECT(lc)->getToneManager()->setTone(LinphoneReasonNone, id, audiofile);
 }
 
-const MSCryptoSuite * linphone_core_get_srtp_crypto_suites(LinphoneCore *lc){
-	const char *config= linphone_config_get_string(lc->config, "sip", "srtp_crypto_suites", "AES_CM_128_HMAC_SHA1_80, AES_CM_128_HMAC_SHA1_32, AES_256_CM_HMAC_SHA1_80, AES_256_CM_HMAC_SHA1_32");
+const MSCryptoSuite * linphone_core_generate_srtp_crypto_suites_array_from_string(LinphoneCore *lc, const char *config){
 	char *tmp=ms_strdup(config);
 
 	char *sep;
 	char *pos;
+	char *nameend;
 	char *nextpos;
 	char *params;
 	unsigned long found=0;
@@ -622,6 +623,10 @@ const MSCryptoSuite * linphone_core_get_srtp_crypto_suites(LinphoneCore *lc){
 		params=strchr(pos,' '); /*look for params that arrive after crypto suite name*/
 		if (params){
 			while(*params==' ') ++params; /*strip parameters leading space*/
+		}
+		nameend=strchr(pos,' ');
+		if (nameend) {
+			*nameend='\0';
 		}
 		if (sep-pos>0){
 			MSCryptoSuiteNameParams np;
@@ -646,6 +651,16 @@ const MSCryptoSuite * linphone_core_get_srtp_crypto_suites(LinphoneCore *lc){
 	}
 	lc->rtp_conf.srtp_suites=result;
 	return result;
+}
+
+const MSCryptoSuite * linphone_core_get_srtp_crypto_suites_array(LinphoneCore *lc){
+	const char *config= linphone_core_get_srtp_crypto_suites(lc);
+	return linphone_core_generate_srtp_crypto_suites_array_from_string(lc, config);
+}
+
+const MSCryptoSuite * linphone_core_get_all_supported_srtp_crypto_suites(LinphoneCore *lc){
+	const char *config= "AES_CM_128_HMAC_SHA1_80, AES_CM_128_HMAC_SHA1_32, AES_256_CM_HMAC_SHA1_80, AES_256_CM_HMAC_SHA1_32,AES_CM_128_HMAC_SHA1_80 UNENCRYPTED_SRTCP,AES_CM_128_HMAC_SHA1_80 UNENCRYPTED_SRTP,AES_CM_128_HMAC_SHA1_80 UNENCRYPTED_SRTCP UNENCRYPTED_SRTP,AES_CM_128_HMAC_SHA1_80 UNAUTHENTICATED_SRTP,AES_CM_128_HMAC_SHA1_32 UNAUTHENTICATED_SRTP";
+	return linphone_core_generate_srtp_crypto_suites_array_from_string(lc, config);
 }
 
 static char * seperate_string_list(char **str) {
@@ -922,11 +937,13 @@ void linphone_core_report_call_log(LinphoneCore *lc, LinphoneCallLog *call_log){
 		conference_factory_uri = linphone_proxy_config_get_conference_factory_uri(proxy);
 	if (conference_factory_uri) {
 		LinphoneAddress *conference_factory_addr = linphone_address_new(conference_factory_uri);
-		if (linphone_address_weak_equal(call_log->to, conference_factory_addr)) {
+		if (conference_factory_addr) {
+			if (linphone_address_weak_equal(call_log->to, conference_factory_addr)) {
+				linphone_address_unref(conference_factory_addr);
+				return;
+			}
 			linphone_address_unref(conference_factory_addr);
-			return;
 		}
-		linphone_address_unref(conference_factory_addr);
 	}
 
 	// For PushIncomingState call, from and to address are unknow.

@@ -260,6 +260,13 @@ LINPHONE_PUBLIC LinphoneChatRoomCbs * linphone_factory_create_chat_room_cbs(cons
 LINPHONE_PUBLIC LinphoneChatMessageCbs * linphone_factory_create_chat_message_cbs(const LinphoneFactory *factory);
 
 /**
+ * Create a LinphoneMagicSearchCbs object that holds callbacks for events happening on a chat message.
+ * @param factory #LinphoneFactory singletion object @notnil
+ * @return A new #LinphoneMagicSearchCbs object @notnil
+ */
+LINPHONE_PUBLIC LinphoneMagicSearchCbs * linphone_factory_create_magic_search_cbs(const LinphoneFactory *factory);
+
+/**
  * Create an empty #LinphoneVcard.
  * @param factory #LinphoneFactory singletion object @notnil
  * @return a new #LinphoneVcard. @notnil
@@ -503,6 +510,13 @@ LINPHONE_PUBLIC void linphone_factory_enable_log_collection(LinphoneFactory *fac
 LINPHONE_PUBLIC LinphoneTunnelConfig *linphone_factory_create_tunnel_config(LinphoneFactory *factory);
 
 /**
+ * Creates an object #LinphoneAccountCbs
+ * @param factory the #LinphoneFactory @notnil
+ * @return a #LinphoneAccountCbs @notnil
+ */
+LINPHONE_PUBLIC LinphoneAccountCbs *linphone_factory_create_account_cbs(LinphoneFactory *factory);
+
+/**
  * Creates an object #LinphoneLoggingServiceCbs
  * @param factory the #LinphoneFactory @notnil
  * @return a #LinphoneLoggingServiceCbs @notnil
@@ -714,6 +728,19 @@ LINPHONE_DEPRECATED LINPHONE_PUBLIC LinphoneCore *linphone_factory_create_core_w
  * @param[in]	secretSize		size of the secret
  */
 LINPHONE_PUBLIC void linphone_factory_set_vfs_encryption(LinphoneFactory *factory, const uint16_t encryptionModule, const uint8_t *secret, const size_t secretSize);
+
+
+/**
+ * Create a #LinphoneDigestAuthenticationPolicy object.
+ * 
+ * The #LinphoneDigestAuthenticationPolicy object which is used to configure a policy for digest authentication,
+ * such as allowing MD5 or mode without qop=auth.
+ * @param factory The #LinphoneFactory @notnil
+ * @return a new #LinphoneDigestAuthenticationPolicy . @notnil
+ */
+LINPHONE_PUBLIC LinphoneDigestAuthenticationPolicy *linphone_factory_create_digest_authentication_policy(const LinphoneFactory *factory);
+
+
 /**
  * @}
  */

@@ -114,7 +114,7 @@ static LinphoneCoreManager* setup(LinphoneLogCollectionState log_collection_stat
 	collect_init();
 	linphone_core_enable_log_collection(log_collection_state);
 
-	marie = linphone_core_manager_new2("marie_rc", 0);
+	marie = linphone_core_manager_new_with_proxies_check("marie_rc", FALSE);
 	// wait a few seconds to generate some traffic
 	while (--timeout){
 		// Generate some logs - error logs because we must ensure that
@@ -220,7 +220,7 @@ static time_t check_file(LinphoneCoreManager* mgr)  {
 		ms_free(filepath);
 
 
-		timediff = labs((long int)log_time - (long int)cur_time);
+		timediff = (uint32_t) labs((long int)log_time - (long int)cur_time);
 #ifndef _WIN32
 		BC_ASSERT_LOWER(timediff, 1, unsigned, "%u");
 		if( !(timediff <= 1) ){
@@ -307,7 +307,7 @@ static void upload_wrong_url(void) {
 	linphone_core_set_log_collection_upload_server_url(marie->lc,"text");
 	linphone_core_upload_log_collection(marie->lc);
 	BC_ASSERT_TRUE(wait_for_until(marie->lc,marie->lc,&marie->stat.number_of_LinphoneCoreLogCollectionUploadStateNotDelivered, 1, 10000));
-	
+
 	collect_cleanup(marie);
 }
 

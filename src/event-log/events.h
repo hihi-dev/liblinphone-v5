@@ -24,6 +24,7 @@
 #include "conference/conference-chat-message-event.h"
 #include "conference/conference-participant-device-event.h"
 #include "conference/conference-security-event.h"
+#include "conference/conference-available-media-event.h"
 #include "conference/conference-subject-event.h"
 #include "conference/conference-ephemeral-message-event.h"
 

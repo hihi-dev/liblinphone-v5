@@ -88,10 +88,13 @@ public:
 	void setImdnMessageId (const std::string &imdnMessageId);
 
 	void setForwardInfo (const std::string &fInfo);
+	void setReplyToMessageIdAndSenderAddress (const std::string &id, const IdentityAddress &sender);
 
 	void enableEphemeralWithTime (long time);
 
 	void setEphemeralExpireTime (time_t expireTime);
+
+	void startEphemeralCountDown ();
 
 	void setAuthenticatedFromAddress (const IdentityAddress &authenticatedFromAddress) {
 		this->authenticatedFromAddress = authenticatedFromAddress;
@@ -101,7 +104,7 @@ public:
 		this->fromAddress = fromAddress;
 	}
 
-	void forceToAddress (const IdentityAddress &toAddress) {
+	void forceToAddress (const ConferenceAddress &toAddress) {
 		this->toAddress = toAddress;
 	}
 
@@ -271,6 +274,8 @@ private:
 	ChatMessage::State state = ChatMessage::State::Idle;
 	ChatMessage::Direction direction = ChatMessage::Direction::Incoming;
 	std::string forwardInfo;
+	std::string replyingToMessageId;
+	IdentityAddress replyingToMessageSender;
 
 	bool isEphemeral = false;
 	long ephemeralLifetime = 86400; // 24h

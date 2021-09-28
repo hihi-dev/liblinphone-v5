@@ -85,12 +85,12 @@ shared_ptr<CallSession> ClientGroupChatRoomPrivate::createSessionTo (Address ses
 	if (capabilities & ClientGroupChatRoom::Capabilities::Encrypted)
 		csp.addCustomHeader("End-To-End-Encrypted", "true");
 
-	Address myCleanedAddress(q->getMe()->getAddress());
-	myCleanedAddress.removeUriParam("gr"); // Remove gr parameter for INVITE.
-
 	shared_ptr<Participant> &focus = static_pointer_cast<RemoteConference>(q->getConference())->focus;
 	shared_ptr<CallSession> session = focus->createSession(*q->getConference().get(), &csp, false, callSessionListener);
-	session->configure(LinphoneCallOutgoing, nullptr, nullptr, myCleanedAddress, sessionTo);
+	Address meCleanedAddress(q->getMe()->getAddress().asAddress());
+	meCleanedAddress.removeUriParam("gr"); // Remove gr parameter for INVITE.
+
+	session->configure(LinphoneCallOutgoing, nullptr, nullptr, meCleanedAddress, sessionTo);
 	session->initiateOutgoing();
 	session->getPrivate()->createOp();
 
@@ -101,7 +101,7 @@ shared_ptr<CallSession> ClientGroupChatRoomPrivate::createSession () {
 	L_Q();
 	const ConferenceAddress & peerAddress(q->getConferenceId().getPeerAddress());
 	shared_ptr<Participant> &focus = static_pointer_cast<RemoteConference>(q->getConference())->focus;
-	const Address sessionTo = peerAddress.isValid() ? peerAddress : focus->getAddress();
+	const Address sessionTo = peerAddress.isValid() ? peerAddress.asAddress() : focus->getAddress().asAddress();
 	return createSessionTo(sessionTo);
 }
 
@@ -485,7 +485,7 @@ ChatRoom::SecurityLevel ClientGroupChatRoom::getSecurityLevelExcept(const std::s
 	
 	// Until participant list & self devices list is populated, don't assume chat room is safe but encrypted
 	if (getParticipants().size() == 0 && getMe()->getDevices().size() == 0) {
-		lInfo() << "Chatroom SecurityLevel = Encrypted";
+		lDebug() << "Chatroom SecurityLevel = Encrypted";
 		return AbstractChatRoom::SecurityLevel::Encrypted;
 	}
 
@@ -499,10 +499,10 @@ ChatRoom::SecurityLevel ClientGroupChatRoom::getSecurityLevelExcept(const std::s
 		// device when it turns off lime after joining the chatroom and this status is thus intercepted before landing here.
 		switch (level) {
 			case AbstractChatRoom::SecurityLevel::Unsafe:
-				lInfo() << "Chatroom SecurityLevel = Unsafe";
+				lDebug() << "Chatroom SecurityLevel = Unsafe";
 				return level; // if one participant is Unsafe the whole chatroom is Unsafe
 			case AbstractChatRoom::SecurityLevel::ClearText:
-				lInfo() << "Chatroom securityLevel = ClearText";
+				lDebug() << "Chatroom securityLevel = ClearText";
 				return level; // if one participant is ClearText the whole chatroom is ClearText
 			case AbstractChatRoom::SecurityLevel::Encrypted:
 				isSafe = false; // if one participant is Encrypted the whole chatroom is Encrypted
@@ -533,10 +533,10 @@ ChatRoom::SecurityLevel ClientGroupChatRoom::getSecurityLevelExcept(const std::s
 	}
 
 	if (isSafe) {
-		lInfo() << "Chatroom SecurityLevel = Safe";
+		lDebug() << "Chatroom SecurityLevel = Safe";
 		return AbstractChatRoom::SecurityLevel::Safe;
 	} else {
-		lInfo() << "Chatroom SecurityLevel = Encrypted";
+		lDebug() << "Chatroom SecurityLevel = Encrypted";
 		return AbstractChatRoom::SecurityLevel::Encrypted;
 	}
 }
@@ -545,7 +545,7 @@ bool ClientGroupChatRoom::hasBeenLeft () const {
 	return (getState() != State::Created);
 }
 
-const ConferenceAddress ClientGroupChatRoom::getConferenceAddress () const {
+const ConferenceAddress &ClientGroupChatRoom::getConferenceAddress () const {
 	return getConference()->getConferenceAddress();
 }
 
@@ -624,12 +624,11 @@ bool ClientGroupChatRoom::addParticipants (
 		sendInvite(session, addressesList);
 		setState(ConferenceInterface::State::CreationPending);
 	} else {
-		SalReferOp *referOp = new SalReferOp(getCore()->getCCore()->sal);
-		LinphoneAddress *lAddr = linphone_address_new(getConferenceAddress().asString().c_str());
+		SalReferOp *referOp = new SalReferOp(getCore()->getCCore()->sal.get());
+		LinphoneAddress *lAddr = L_GET_C_BACK_PTR(&(getConferenceAddress().asAddress()));
 		linphone_configure_op(getCore()->getCCore(), referOp, lAddr, nullptr, true);
-		linphone_address_unref(lAddr);
 		for (const auto &addr : addresses) {
-			Address referToAddr = addr;
+			Address referToAddr = addr.asAddress();
 			referToAddr.setParam("text");
 			referOp->sendRefer(referToAddr.getInternalAddress());
 		}
@@ -653,11 +652,10 @@ bool ClientGroupChatRoom::removeParticipant (const shared_ptr<Participant> &part
 	LinphoneCore *cCore = getCore()->getCCore();
 
 	//TODO handle one-to-one case ?
-	SalReferOp *referOp = new SalReferOp(cCore->sal);
-	LinphoneAddress *lAddr = linphone_address_new(getConferenceAddress().asString().c_str());
+	SalReferOp *referOp = new SalReferOp(cCore->sal.get());
+	LinphoneAddress *lAddr = L_GET_C_BACK_PTR(&(getConferenceAddress().asAddress()));
 	linphone_configure_op(cCore, referOp, lAddr, nullptr, false);
-	linphone_address_unref(lAddr);
-	Address referToAddr = participant->getAddress();
+	Address referToAddr = participant->getAddress().asAddress();
 	referToAddr.setParam("text");
 	referToAddr.setUriParam("method", "BYE");
 	referOp->sendRefer(referToAddr.getInternalAddress());
@@ -693,11 +691,10 @@ void ClientGroupChatRoom::setParticipantAdminStatus (const shared_ptr<Participan
 
 	LinphoneCore *cCore = getCore()->getCCore();
 
-	SalReferOp *referOp = new SalReferOp(cCore->sal);
-	LinphoneAddress *lAddr = linphone_address_new(getConferenceAddress().asString().c_str());
+	SalReferOp *referOp = new SalReferOp(cCore->sal.get());
+	LinphoneAddress *lAddr = L_GET_C_BACK_PTR(&(getConferenceAddress().asAddress()));
 	linphone_configure_op(cCore, referOp, lAddr, nullptr, false);
-	linphone_address_unref(lAddr);
-	Address referToAddr = participant->getAddress();
+	Address referToAddr = participant->getAddress().asAddress();
 	referToAddr.setParam("text");
 	referToAddr.setParam("admin", Utils::toString(isAdmin));
 	referOp->sendRefer(referToAddr.getInternalAddress());
@@ -869,7 +866,12 @@ void ClientGroupChatRoomPrivate::onRemotelyExhumedConference (SalCallOp *op) {
 
 	if (q->getState() != ChatRoom::State::Terminated) {
 		lWarning() << "Conference is being exhumed but wasn't terminated first!";
-		addConferenceIdToPreviousList(oldConfId);
+
+		if (oldConfId == newConfId) {
+			lWarning() << "Conference is being exhumed but with the same conference id!";
+		} else {
+			addConferenceIdToPreviousList(oldConfId);
+		}
 	}
 
 	lInfo() << "Conference [" << oldConfId << "] is being exhumed into [" << newConfId << "]";
@@ -878,7 +880,9 @@ void ClientGroupChatRoomPrivate::onRemotelyExhumedConference (SalCallOp *op) {
 
 	if (q->getState() != ChatRoom::State::Terminated) {
 		// Wait for chat room to have been updated before inserting the previous ID in db
-		q->getCore()->getPrivate()->mainDb->insertNewPreviousConferenceId(newConfId, oldConfId);
+		if (oldConfId != newConfId) {
+			q->getCore()->getPrivate()->mainDb->insertNewPreviousConferenceId(newConfId, oldConfId);
+		}
 	}
 
 	confirmJoining(op);

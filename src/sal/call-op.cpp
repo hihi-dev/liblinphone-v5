@@ -31,23 +31,28 @@ using namespace std;
 
 LINPHONE_BEGIN_NAMESPACE
 
-SalCallOp::SalCallOp (Sal *sal) : SalOp(sal) {
+SalCallOp::SalCallOp (Sal *sal, const bool capabilityNegotiation) : SalOp(sal) {
 	mType = Type::Call;
 	fillCallbacks();
+	enableCapabilityNegotiation(capabilityNegotiation);
 }
 
 SalCallOp::~SalCallOp () {
-	if (mLocalMedia)
-		sal_media_description_unref(mLocalMedia);
-	if (mRemoteMedia)
-		sal_media_description_unref(mRemoteMedia);
+
 }
 
-int SalCallOp::setLocalMediaDescription (SalMediaDescription *desc) {
+void SalCallOp::enableCapabilityNegotiation (const bool enable) {
+	capabilityNegotiation = enable;
+}
+
+bool SalCallOp::capabilityNegotiationEnabled () const {
+	return capabilityNegotiation;
+}
+
+int SalCallOp::setLocalMediaDescription (std::shared_ptr<SalMediaDescription> desc) {
 	if (desc) {
-		sal_media_description_ref(desc);
 		belle_sip_error_code error;
-		belle_sdp_session_description_t *sdp = media_description_to_sdp(desc);
+		belle_sdp_session_description_t *sdp = desc->toSdp();
 		vector<char> buffer = marshalMediaDescription(sdp, error);
 		belle_sip_object_unref(sdp);
 		if (error != BELLE_SIP_OK)
@@ -59,8 +64,6 @@ int SalCallOp::setLocalMediaDescription (SalMediaDescription *desc) {
 		mLocalBody = Content();
 	}
 
-	if (mLocalMedia)
-		sal_media_description_unref(mLocalMedia);
 	mLocalMedia = desc;
 
 	if (mRemoteMedia) {
@@ -85,19 +88,16 @@ int SalCallOp::setLocalBody (Content &&body) {
 		return -1;
 
 	if (body.getContentType() == ContentType::Sdp) {
-		SalMediaDescription *desc = nullptr;
+		std::shared_ptr<SalMediaDescription> desc = nullptr;
 		if (body.getSize() > 0) {
 			belle_sdp_session_description_t *sdp = belle_sdp_session_description_parse(body.getBodyAsString().c_str());
 			if (!sdp)
 				return -1;
-			desc = sal_media_description_new();
-			if (sdp_to_media_description(sdp, desc) != 0) {
-				sal_media_description_unref(desc);
+			desc = std::make_shared<SalMediaDescription>(sdp);
+			if (!desc) {
 				return -1;
 			}
 		}
-		if (mLocalMedia)
-			sal_media_description_unref(mLocalMedia);
 		mLocalMedia = desc;
 	}
 
@@ -163,8 +163,8 @@ int SalCallOp::setSdp (belle_sip_message_t *msg, belle_sdp_session_description_t
 	return 0;
 }
 
-int SalCallOp::setSdpFromDesc (belle_sip_message_t *msg, const SalMediaDescription *desc) {
-	auto sdp = media_description_to_sdp(desc);
+int SalCallOp::setSdpFromDesc (belle_sip_message_t *msg, const std::shared_ptr<SalMediaDescription> & desc) {
+	auto sdp = desc->toSdp();
 	int err = setSdp(msg, sdp);
 	belle_sip_object_unref(sdp);
 	return err;
@@ -328,17 +328,16 @@ int SalCallOp::parseSdpBody (const Content &body, belle_sdp_session_description_
 	return 0;
 }
 
-void SalCallOp::setAddrTo0000 (char value[], size_t sz) {
-	if (ms_is_ipv6(value))
-		strncpy(value, "::0", sz);
+std::string SalCallOp::setAddrTo0000 (const std::string & value) {
+	if (ms_is_ipv6(value.c_str()))
+		return "::0";
 	else
-		strncpy(value, "0.0.0.0", sz);
+		return "0.0.0.0";
 }
 
 void SalCallOp::sdpProcess () {
 	lInfo() << "Doing SDP offer/answer process of type " << (mSdpOffering ? "outgoing" : "incoming");
 	if (mResult) {
-		sal_media_description_unref(mResult);
 		mResult = nullptr;
 	}
 
@@ -346,46 +345,44 @@ void SalCallOp::sdpProcess () {
 	if (!mRemoteMedia)
 		return;
 
-	mResult = sal_media_description_new();
 	if (mSdpOffering) {
-		offer_answer_initiate_outgoing(mRoot->mFactory, mLocalMedia, mRemoteMedia, mResult);
+		mResult = OfferAnswerEngine::initiateOutgoing(mRoot->mFactory, mLocalMedia, mRemoteMedia);
 	} else {
 		if (mSdpAnswer)
 			belle_sip_object_unref(mSdpAnswer);
-		offer_answer_initiate_incoming(mRoot->mFactory, mLocalMedia, mRemoteMedia, mResult, mRoot->mOneMatchingCodec);
+		mResult = OfferAnswerEngine::initiateIncoming(mRoot->mFactory, mLocalMedia, mRemoteMedia, mRoot->mOneMatchingCodec);
 		// For backward compatibility purpose
-		if (mCnxIpTo0000IfSendOnlyEnabled && sal_media_description_has_dir(mResult,SalStreamSendOnly)) {
-			setAddrTo0000(mResult->addr, sizeof(mResult->addr));
-			for (int i = 0; i < SAL_MEDIA_DESCRIPTION_MAX_STREAMS; i++) {
-				if (mResult->streams[i].dir == SalStreamSendOnly) {
-					setAddrTo0000(mResult->streams[i].rtp_addr, sizeof(mResult->streams[i].rtp_addr));
-					setAddrTo0000(mResult->streams[i].rtcp_addr, sizeof(mResult->streams[i].rtcp_addr));
+		if (mCnxIpTo0000IfSendOnlyEnabled && mResult->hasDir(SalStreamSendOnly)) {
+			mResult->addr = setAddrTo0000(mResult->addr);
+			for (auto & stream : mResult->streams) {
+				if (stream.getDirection() == SalStreamSendOnly) {
+					stream.rtp_addr = setAddrTo0000(stream.rtp_addr);
+					stream.rtcp_addr = setAddrTo0000(stream.rtcp_addr);
 				}
 			}
 		}
 
-		mSdpAnswer = reinterpret_cast<belle_sdp_session_description_t *>(belle_sip_object_ref(media_description_to_sdp(mResult)));
+		mSdpAnswer = reinterpret_cast<belle_sdp_session_description_t *>(belle_sip_object_ref(mResult->toSdp()));
 		// Once we have generated the SDP answer, we modify the result description for processing by the upper layer
 		// It should contain media parameters constraints from the remote offer, not our response
-		strcpy(mResult->addr, mRemoteMedia->addr);
+		mResult->addr = mRemoteMedia->addr;
 		mResult->bandwidth = mRemoteMedia->bandwidth;
 
-		for(int i = 0; i < SAL_MEDIA_DESCRIPTION_MAX_STREAMS; i++) {
+		for(size_t i = 0; i < mResult->streams.size(); i++) {
 			// Copy back parameters from remote description that we need in our result description
 			if (mResult->streams[i].rtp_port != 0) { // If the stream was accepted
-				strcpy(mResult->streams[i].rtp_addr, mRemoteMedia->streams[i].rtp_addr);
-				mResult->streams[i].ptime = mRemoteMedia->streams[i].ptime;
-				mResult->streams[i].maxptime = mRemoteMedia->streams[i].maxptime;
+				mResult->streams[i].rtp_addr = mRemoteMedia->streams[i].rtp_addr;
+				mResult->streams[i].setPtime(mRemoteMedia->streams[i].getChosenConfiguration().ptime, mRemoteMedia->streams[i].getChosenConfiguration().maxptime);
 				mResult->streams[i].bandwidth = mRemoteMedia->streams[i].bandwidth;
 				mResult->streams[i].rtp_port = mRemoteMedia->streams[i].rtp_port;
-				strcpy(mResult->streams[i].rtcp_addr, mRemoteMedia->streams[i].rtcp_addr);
+				mResult->streams[i].rtcp_addr = mRemoteMedia->streams[i].rtcp_addr;
 				mResult->streams[i].rtcp_port = mRemoteMedia->streams[i].rtcp_port;
-				if (sal_stream_description_has_srtp(&mResult->streams[i])) {
-					int cryptoIdx = Sal::findCryptoIndexFromTag(	mRemoteMedia->streams[i].crypto, static_cast<unsigned char>(mResult->streams[i].crypto[0].tag));
+				if (mResult->streams[i].hasSrtp()) {
+					int cryptoIdx = Sal::findCryptoIndexFromTag(mRemoteMedia->streams[i].getCryptos(), static_cast<unsigned char>(mResult->streams[i].getCryptoAtIndex(0).tag));
 					if (cryptoIdx >= 0)
-						mResult->streams[i].crypto[0] = mRemoteMedia->streams[i].crypto[cryptoIdx];
+						mResult->streams[i].setCrypto(0, mRemoteMedia->streams[i].getCryptoAtIndex(static_cast<size_t>(cryptoIdx)));
 					else
-						lError() << "Failed to find crypto algo with tag: " << mResult->streams[i].crypto_local_tag << "from resulting description [" << mResult << "]";
+						lError() << "Failed to find crypto algo with tag: " << mResult->streams[i].getChosenConfiguration().crypto_local_tag << "from resulting description [" << mResult << "]";
 				}
 			}
 		}
@@ -414,7 +411,6 @@ void SalCallOp::handleSessionTimersFromResponse (belle_sip_response_t *response)
 void SalCallOp::handleBodyFromResponse (belle_sip_response_t *response) {
 	Content body = extractBody(BELLE_SIP_MESSAGE(response));
 	if (mRemoteMedia) {
-		sal_media_description_unref(mRemoteMedia);
 		mRemoteMedia = nullptr;
 	}
 
@@ -435,9 +431,10 @@ void SalCallOp::handleBodyFromResponse (belle_sip_response_t *response) {
 		SalReason reason;
 		if (parseSdpBody(sdpBody, &sdp, &reason) == 0) {
 			if (sdp) {
-				mRemoteMedia = sal_media_description_new();
-				sdp_to_media_description(sdp, mRemoteMedia);
+
+				mRemoteMedia = std::make_shared<SalMediaDescription>(sdp);
 				mRemoteBody = move(sdpBody);
+				belle_sip_object_unref(sdp);
 			} // If no SDP in response, what can we do?
 		}
 		// Process sdp in any case to reset result media description
@@ -616,7 +613,7 @@ void SalCallOp::processResponseCb (void *userCtx, const belle_sip_response_event
 							string typeStr = belle_sip_header_content_type_get_type(contentTypeHeader);
 							string subtypeStr = belle_sip_header_content_type_get_subtype(contentTypeHeader);
 							if ((code == 491) && (typeStr == "application") && (subtypeStr == "media_control+xml")) {
-								unsigned int retryIn = rand() % 1001; // [0;1000]
+								unsigned int retryIn = (unsigned int) rand() % 1001; // [0;1000]
 								belle_sip_source_t *s = op->mRoot->createTimer(vfuRetryCb, op->ref(), retryIn, "vfu request retry");
 								lInfo() << "Rejected vfu request on op [" << op << "], just retry in [" << retryIn << "] ms";
 								belle_sip_object_unref(s);
@@ -722,8 +719,8 @@ void SalCallOp::processTransactionTerminatedCb (void *userCtx, const belle_sip_t
 		op->setReleased();
 }
 
-bool SalCallOp::isMediaDescriptionAcceptable (SalMediaDescription *md) {
-	if (md->nb_streams == 0) {
+bool SalCallOp::isMediaDescriptionAcceptable (std::shared_ptr<SalMediaDescription> & md) {
+	if (md->streams.size() == 0) {
 		lWarning() << "Media description does not define any stream";
 		return false;
 	}
@@ -753,10 +750,7 @@ SalReason SalCallOp::processBodyForInvite (belle_sip_request_t *invite) {
 		if (parseSdpBody(sdpBody, &sdp, &reason) == 0) {
 			if (sdp) {
 				mSdpOffering = false;
-				if (mRemoteMedia)
-					sal_media_description_unref(mRemoteMedia);
-				mRemoteMedia = sal_media_description_new();
-				sdp_to_media_description(sdp, mRemoteMedia);
+				mRemoteMedia = std::make_shared<SalMediaDescription>(sdp);
 				// Make some sanity check about the received SDP
 				if (!isMediaDescriptionAcceptable(mRemoteMedia))
 					reason = SalReasonNotAcceptable;
@@ -799,10 +793,7 @@ SalReason SalCallOp::processBodyForAck (belle_sip_request_t *ack) {
 		belle_sdp_session_description_t *sdp;
 		if (parseSdpBody(sdpBody, &sdp, &reason) == 0) {
 			if (sdp) {
-				if (mRemoteMedia)
-					sal_media_description_unref(mRemoteMedia);
-				mRemoteMedia = sal_media_description_new();
-				sdp_to_media_description(sdp, mRemoteMedia);
+				mRemoteMedia = std::make_shared<SalMediaDescription>(sdp);
 				sdpProcess();
 				belle_sip_object_unref(sdp);
 			} else {
@@ -825,11 +816,9 @@ void SalCallOp::callTerminated (belle_sip_server_transaction_t *serverTransactio
 
 void SalCallOp::resetDescriptions () {
 	if (mRemoteMedia) {
-		sal_media_description_unref(mRemoteMedia);
 		mRemoteMedia = nullptr;
 	}
 	if (mResult) {
-		sal_media_description_unref(mResult);
 		mResult = nullptr;
 	}
 }
@@ -853,6 +842,15 @@ void SalCallOp::processRequestEventCb (void *userCtx, const belle_sip_request_ev
 	belle_sip_server_transaction_t *serverTransaction = nullptr;
 	auto request = belle_sip_request_event_get_request(event);
 	string method = belle_sip_request_get_method(request);
+
+	if (method == "BYE") {
+		/**
+		 * When the timer is quite short, it is possible that a timer renewal
+		 * is sent after the BYE is received. Here we cancel the timer to prevent that oddly case.
+		 */
+		op->haltSessionTimersTimer();
+	}
+
 	if (method != "ACK") { // ACK doesn't create a server transaction
 		serverTransaction = belle_sip_provider_create_server_transaction(op->mRoot->mProvider, belle_sip_request_event_get_request(event));
 		belle_sip_object_ref(serverTransaction);
@@ -1169,7 +1167,7 @@ int SalCallOp::call (const string &from, const string &to, const string &subject
 	return sendRequest(invite);
 }
 
-int SalCallOp::notifyRinging (bool earlyMedia) {
+int SalCallOp::notifyRinging (bool earlyMedia, const LinphoneSupportLevel supportLevel100Rel) {
 	int statusCode = earlyMedia ? 183 : 180;
 	auto request = belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(mPendingServerTransaction));
 	belle_sip_response_t *ringingResponse = createResponseFromRequest(request, statusCode);
@@ -1177,19 +1175,47 @@ int SalCallOp::notifyRinging (bool earlyMedia) {
 	if (earlyMedia)
 		handleOfferAnswerResponse(ringingResponse);
 
-	const char *tags = nullptr;
-	auto requireHeader = belle_sip_message_get_header(BELLE_SIP_MESSAGE(request), "Require");
-	if (requireHeader)
-		tags = belle_sip_header_get_unparsed_value(requireHeader);
+	const char *requireTags = nullptr;
+	auto requireHeaderTags = belle_sip_message_get_header(BELLE_SIP_MESSAGE(request), "Require");
+	if (requireHeaderTags) {
+		requireTags = belle_sip_header_get_unparsed_value(requireHeaderTags);
+	}
+
+	const char *supportedTags = nullptr;
+	auto supportedHeaderTags = belle_sip_message_get_header(BELLE_SIP_MESSAGE(request), "Supported");
+	if (supportedHeaderTags) {
+		supportedTags = belle_sip_header_get_unparsed_value(supportedHeaderTags);
+	}
+
+	int ret = 0;
+	bool add100RelAttribute = false;
+
+	switch (supportLevel100Rel) {
+		case LinphoneSupportLevelNoSupport:
+			// No required tags or 100rel is not among the required tags
+			ret = (!requireTags || (requireTags && (strstr(requireTags, "100rel") == 0))) ? 0 : -1;;
+			add100RelAttribute = false;
+			break;
+		case LinphoneSupportLevelOptional:
+			ret = 0;
+			// 100rel is mandatory in the offer
+			add100RelAttribute = (requireTags && (strstr(requireTags, "100rel") != 0));
+			break;
+		case LinphoneSupportLevelMandatory:
+			// 100rel is mandatory in the offer or at least supported
+			ret = ((requireTags && (strstr(requireTags, "100rel") != 0)) || (supportedTags && (strstr(supportedTags, "100rel") != 0))) ? 0 : -1;
+			add100RelAttribute = true;
+			break;
+	}
 	// If client requires 100rel, then add necessary stuff
-	if (tags && (strstr(tags, "100rel") != 0)) {
+	if (add100RelAttribute) {
 		belle_sip_message_add_header(BELLE_SIP_MESSAGE(ringingResponse), belle_sip_header_create("Require", "100rel"));
 		belle_sip_message_add_header(BELLE_SIP_MESSAGE(ringingResponse), belle_sip_header_create("RSeq", "1"));
 	}
 
 #ifndef SAL_OP_CALL_FORCE_CONTACT_IN_RINGING
-	if (tags && (strstr(tags, "100rel") != 0))
-#endif
+	if (add100RelAttribute)
+#endif // SAL_OP_CALL_FORCE_CONTACT_IN_RINGING
 	{
 		auto contact = reinterpret_cast<const belle_sip_header_address_t *>(getContactAddress());
 		belle_sip_header_contact_t *contactHeader;
@@ -1197,7 +1223,7 @@ int SalCallOp::notifyRinging (bool earlyMedia) {
 			belle_sip_message_add_header(BELLE_SIP_MESSAGE(ringingResponse), BELLE_SIP_HEADER(contactHeader));
 	}
 	belle_sip_server_transaction_send_response(mPendingServerTransaction, ringingResponse);
-	return 0;
+	return ret;
 }
 
 int SalCallOp::accept () {
@@ -1501,7 +1527,7 @@ int SalCallOp::cancelInvite (const SalErrorInfo *info) {
 	return -1;
 }
 
-SalMediaDescription *SalCallOp::getFinalMediaDescription () {
+std::shared_ptr<SalMediaDescription> & SalCallOp::getFinalMediaDescription () {
 	if (mLocalMedia && mRemoteMedia && !mResult)
 		sdpProcess();
 	return mResult;
@@ -1604,8 +1630,17 @@ SalCallOp *SalCallOp::getReplaces () const {
 		belle_sip_header_replaces_get_from_tag(mReplaces)
 	);
 
+	if (!dialog && strcmp(belle_sip_header_replaces_get_to_tag(mReplaces),"0") == 0) {
+		//even if not described in rfc3891, in case of very early network switch at caller side, we might receive a replace header without to-tag. Give a chance to find the early dialog
+		dialog = belle_sip_provider_find_dialog_with_remote_tag(
+			mRoot->mProvider,
+			belle_sip_header_replaces_get_call_id(mReplaces),
+			belle_sip_header_replaces_get_from_tag(mReplaces)
+		);
+	}
 	if (dialog)
 		return reinterpret_cast<SalCallOp *>(belle_sip_dialog_get_application_data(dialog));
+
 	return nullptr;
 }
 
@@ -1787,6 +1822,19 @@ int SalCallOp::notifyReferState (SalCallOp *newCallOp) {
 void SalCallOp::setReplaces (const string &callId, const string &fromTag, const string &toTag) {
 	auto replacesHeader = belle_sip_header_replaces_create(callId.c_str(), fromTag.c_str(), toTag.c_str());
 	SalOp::setReplaces(replacesHeader);
+}
+const char *SalCallOp::getLocalTag () {
+	if (mDialog)
+		return belle_sip_dialog_get_local_tag(mDialog);
+	else if (mState == SalOp::State::Early && mPendingClientTransaction != nullptr){
+		//look for from tag of invite transaction
+		return belle_sip_header_from_get_tag(belle_sip_message_get_header_by_type(belle_sip_transaction_get_request(BELLE_SIP_TRANSACTION(mPendingClientTransaction)), belle_sip_header_from_t));
+	} else
+		return "";
+	
+}
+const char *SalCallOp::getRemoteTag () {
+	return mDialog?belle_sip_dialog_get_remote_tag(mDialog):"";
 }
 
 void SalCallOp::setSdpHandling (SalOpSDPHandling handling) {

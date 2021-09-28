@@ -28,10 +28,10 @@
 
 // enum the different methods for the client to retrieve the certificate
 enum class certProvider {
-	config_sip, /**< in the sip section (client_cert_chain and client_cert_key) of the config file */
-	config_auth_info_buffer, /**< in a dedicated auth_info section of the configuration file, set cert and key in a buffer -> they won't be written in the core config file */
-	config_auth_info_path, /**< in a dedicated auth_info section of the configuration file, set path to cert and key -> these will be written in the core config file */
-	callback /**< using a callback adding auth_info into the core :
+	config_sip = 0, /**< in the sip section (client_cert_chain and client_cert_key) of the config file */
+	config_auth_info_buffer = 1, /**< in a dedicated auth_info section of the configuration file, set cert and key in a buffer -> they won't be written in the core config file */
+	config_auth_info_path = 2, /**< in a dedicated auth_info section of the configuration file, set path to cert and key -> these will be written in the core config file */
+	callback = 3 /**< using a callback adding auth_info into the core :
 		   NOT IMPLEMENTED, Client certificate for lime user identification shall already be accessible to the core as
 		  user register to the flexisip server before. THIS IS NOT DONE THIS WAY IN THIS TEST SUITE : user register on
 		  flexisip user http digest and tls cert on lime server for test purpose, it is very unlikely to proceed this way*/
@@ -40,7 +40,8 @@ enum class certProvider {
 // Helper to loop on all certificate providing methods availables
 static std::array<certProvider, 3> availCertProv{{certProvider::config_sip, certProvider::config_auth_info_buffer, certProvider::config_auth_info_path}};
 
-static const int x3dhServer_creationTimeout = 10000;
+static const int x3dhServer_creationTimeout = 15000;
+
 // This function will add proxy and auth info to the core config. The proxy is set as the default one
 static void add_user_to_core_config(LinphoneCore *lc, const char *identity, const char *username, const char *realm, const char * server, const char *password) {
 	// Use the user user_1
@@ -362,5 +363,3 @@ test_suite_t lime_server_auth_test_suite = {
 	liblinphone_tester_after_each,
 	sizeof(lime_server_auth_tests) / sizeof(lime_server_auth_tests[0]), lime_server_auth_tests
 };
-
-

@@ -80,7 +80,7 @@ public:
 
 	enum class Direction{
 		Incoming = LinphoneChatMessageDirectionIncoming,
-		Outgoing
+		Outgoing = LinphoneChatMessageDirectionOutgoing
 	};
 
 	//casting to int to get rid of the enum compare warning.
@@ -112,10 +112,15 @@ public:
 	const std::string &getImdnMessageId () const;
 
 	const IdentityAddress &getAuthenticatedFromAddress () const;
-	const IdentityAddress &getFromAddress () const;
-	const IdentityAddress &getToAddress () const;
-	const IdentityAddress &getLocalAdress () const;
+	const ConferenceAddress &getFromAddress () const;
+	const ConferenceAddress &getToAddress () const;
+	const ConferenceAddress &getLocalAdress () const;
 	const std::string &getForwardInfo () const;
+
+	bool isReply () const;
+	const std::string &getReplyToMessageId () const;
+	const IdentityAddress& getReplyToSenderAddress () const;
+	std::shared_ptr<ChatMessage> getReplyToMessage() const;
 
 	bool isEphemeral () const;
 	long getEphemeralLifetime () const;

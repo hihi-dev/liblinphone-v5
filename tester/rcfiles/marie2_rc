@@ -1,3 +1,7 @@
+[account_creator]
+backend=1
+url=http://subscribe.example.org/flexiapi/api/
+
 [sip]
 sip_port=-1
 sip_tcp_port=-1
@@ -58,3 +62,6 @@ stun_server=stun.example.org
 mime=VP8
 rate=90000
 enabled=1
+
+[tester]
+test_env=1

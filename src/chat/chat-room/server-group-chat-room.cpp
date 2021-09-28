@@ -57,21 +57,24 @@ void ParticipantDeviceIdentity::setCapabilityDescriptor(const string &capabiliti
 }
 
 ParticipantDeviceIdentity::~ParticipantDeviceIdentity(){
-	linphone_address_destroy(mDeviceAddressCache);
+	linphone_address_unref(mDeviceAddressCache);
 }
 
 // -----------------------------------------------------------------------------
 
 #define CALL_CHAT_ROOM_CBS(cr, cbName, functionName, ...) \
-	bctbx_list_t *callbacksCopy = bctbx_list_copy(linphone_chat_room_get_callbacks_list(cr)); \
-	for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) { \
-		linphone_chat_room_set_current_callbacks(cr, reinterpret_cast<LinphoneChatRoomCbs *>(bctbx_list_get_data(it))); \
-		LinphoneChatRoomCbs ## cbName ## Cb cb = linphone_chat_room_cbs_get_ ## functionName (linphone_chat_room_get_current_callbacks(cr)); \
-		if (cb) \
-			cb(__VA_ARGS__); \
-	} \
-	linphone_chat_room_set_current_callbacks(cr, nullptr); \
-	bctbx_list_free(callbacksCopy);
+	do{\
+		bctbx_list_t *callbacksCopy = bctbx_list_copy_with_data(linphone_chat_room_get_callbacks_list(cr), (bctbx_list_copy_func) belle_sip_object_ref); \
+		for (bctbx_list_t *it = callbacksCopy; it; it = bctbx_list_next(it)) { \
+			LinphoneChatRoomCbs *cbs = static_cast<LinphoneChatRoomCbs *>(bctbx_list_get_data(it));\
+			linphone_chat_room_set_current_callbacks(cr, cbs); \
+			LinphoneChatRoomCbs ## cbName ## Cb cb = linphone_chat_room_cbs_get_ ## functionName (cbs); \
+			if (cb) \
+				cb(__VA_ARGS__); \
+		} \
+		linphone_chat_room_set_current_callbacks(cr, nullptr); \
+		bctbx_list_free_with_data(callbacksCopy, (bctbx_list_free_func) belle_sip_object_unref);\
+	}while(0)
 
 shared_ptr<Participant> ServerGroupChatRoomPrivate::addParticipant (const IdentityAddress &addr) {
 	L_Q();
@@ -146,23 +149,23 @@ void ServerGroupChatRoomPrivate::confirmCreation () {
 	shared_ptr<Participant> me = q->getMe();
 	shared_ptr<CallSession> session = me->getSession();
 	session->startIncomingNotification(false);
-	
+
 	/* Assign a random conference address to this new chatroom, with domain
 	 * set according to the proxy config used to receive the INVITE.
 	 */
-	
+
 	LinphoneProxyConfig *cfg = session->getPrivate()->getDestProxy();
 	if (!cfg) cfg = linphone_core_get_default_proxy_config(L_GET_C_BACK_PTR(q->getCore()));
 	LinphoneAddress *addr = linphone_address_clone(linphone_proxy_config_get_identity_address(cfg));
-	
+
 	char token[17];
 	ostringstream os;
-	
+
 	belle_sip_random_token(token, sizeof(token));
 	os << "chatroom-" << token;
 	linphone_address_set_username(addr, os.str().c_str());
 	q->getConference()->confParams->setConferenceAddress(*L_GET_CPP_PTR_FROM_C_OBJECT(addr));
-	linphone_address_destroy(addr);
+	linphone_address_unref(addr);
 
 	/* Application (conference server) callback to register the name.
 	 * In response, the conference server will call setConferenceAddress().
@@ -191,7 +194,7 @@ void ServerGroupChatRoomPrivate::requestDeletion(){
 	if (!registrationSubscriptions.empty()){
 		lError() << q << " still " << registrationSubscriptions.size() << " registration subscriptions pending while deletion is requested.";
 	}
-	
+
 	shared_ptr<ChatRoom> chatRoom(q->getSharedFromThis()); // Take a shared_ptr here, because onChatRoomDeleteRequested() may destroy our chatroom otherwise.
 	chatRoomListener->onChatRoomDeleteRequested(chatRoom);
 	/*
@@ -282,9 +285,9 @@ void ServerGroupChatRoomPrivate::confirmJoining (SalCallOp *op) {
 		CallSessionParams params;
 		//params.addCustomContactParameter("isfocus");
 		session = participant->createSession(*q->getConference().get(), &params, false, this);
-		session->configure(LinphoneCallIncoming, nullptr, op, participant->getAddress(), Address(op->getTo()));
+		session->configure(LinphoneCallIncoming, nullptr, op, participant->getAddress().asAddress(), Address(op->getTo()));
 		session->startIncomingNotification(false);
-		Address addr = q->getConference()->getConferenceAddress();
+		Address addr = q->getConference()->getConferenceAddress().asAddress();
 		addr.setParam("isfocus");
 		//to force is focus to be added
 		session->getPrivate()->getOp()->setContactAddress(addr.getInternalAddress());
@@ -316,7 +319,7 @@ void ServerGroupChatRoomPrivate::confirmJoining (SalCallOp *op) {
 void ServerGroupChatRoomPrivate::confirmRecreation (SalCallOp *op) {
 	L_Q();
 
-	auto participant = q->findCachedParticipant(Address(op->getFrom()));
+	auto participant = q->findCachedParticipant(IdentityAddress(op->getFrom()));
 	if (!participant){
 		lError() << q << " bug - " << op->getFrom() << " is not a participant.";
 		op->decline(SalReasonInternalError, "");
@@ -326,7 +329,7 @@ void ServerGroupChatRoomPrivate::confirmRecreation (SalCallOp *op) {
 	IdentityAddress confAddr(q->getConference()->getConferenceAddress());
 
 	lInfo() << q << " is re-joined by " << participant->getAddress();
-	Address addr(confAddr);
+	Address addr(confAddr.asAddress());
 	addr.setParam("isfocus");
 	shared_ptr<Participant> me = q->getMe();
 	shared_ptr<CallSession> session = me->createSession(*q->getConference().get(), nullptr, false, this);
@@ -468,7 +471,7 @@ bool ServerGroupChatRoomPrivate::initializeParticipants (const shared_ptr<Partic
 	handleSubjectChange(op);
 	// Handle participants addition
 	list<IdentityAddress> identAddresses = ServerGroupChatRoom::parseResourceLists(op->getRemoteBody());
-	// Do not try to add participants with invalid address
+	// DO not try to add participants with invalid address
 	for (auto it = identAddresses.begin(); it != identAddresses.end(); ) {
 		if (!((*it).isValid())) {
 			lError()<<"ServerGroupChatRoomPrivate::initializeParticipants(): removing invalid address " << ((*it).asString()) << " at position " << std::distance(it, identAddresses.begin());
@@ -608,7 +611,7 @@ void ServerGroupChatRoomPrivate::updateParticipantDevices(const IdentityAddress 
 	// Remove all devices that are no longer existing.
 	for (auto &device : devicesToRemove)
 		removeParticipantDevice(participant, device->getAddress());
-	
+
 	if (protocolVersion < CorePrivate::groupChatProtocolVersion){
 		/* we need to recheck in case some devices have upgraded. */
 		determineProtocolVersion();
@@ -622,7 +625,7 @@ void ServerGroupChatRoomPrivate::conclude(){
 	L_Q();
 	lInfo() << q << "All devices are known, the chatroom creation can be concluded.";
 	shared_ptr<CallSession> session = mInitiatorDevice->getSession();
-	
+
 	if (!session){
 		lError() << "ServerGroupChatRoomPrivate::conclude(): initiator's session died.";
 		requestDeletion();
@@ -640,7 +643,7 @@ void ServerGroupChatRoomPrivate::conclude(){
 		acceptSession(session);
 		if ((capabilities & ServerGroupChatRoom::Capabilities::OneToOne) && (q->getParticipantCount() == 2)) {
 			// Insert the one-to-one chat room in Db if participants count is 2.
-			// This is necessary for protocol version < 1.1, and for backward compatibility in case these prior versions 
+			// This is necessary for protocol version < 1.1, and for backward compatibility in case these prior versions
 			// are subsequently used by device that gets joined to the chatroom.
 			q->getCore()->getPrivate()->mainDb->insertOneToOneConferenceChatRoom(q->getSharedFromThis(),
 				!!(capabilities & ServerGroupChatRoom::Capabilities::Encrypted) );
@@ -806,7 +809,7 @@ void ServerGroupChatRoomPrivate::finalizeCreation () {
 	// Let the SIP stack set the domain and the port
 	shared_ptr<Participant> me = q->getMe();
 	me->setAddress(confAddr);
-	Address addr(confAddr);
+	Address addr(confAddr.asAddress());
 	addr.setParam("isfocus");
 	shared_ptr<CallSession> session = me->getSession();
 	if (session->getState() == CallSession::State::Idle) {
@@ -849,12 +852,12 @@ shared_ptr<CallSession> ServerGroupChatRoomPrivate::makeSession(const std::share
 		//csp.addCustomContactParameter("text");
 		shared_ptr<Participant> participant = const_pointer_cast<Participant>(device->getParticipant()->getSharedFromThis());
 		session = participant->createSession(*q->getConference().get(), &csp, false, this);
-		session->configure(LinphoneCallOutgoing, nullptr, nullptr, q->getConference()->getConferenceAddress(), device->getAddress());
+		session->configure(LinphoneCallOutgoing, nullptr, nullptr, q->getConference()->getConferenceAddress().asAddress(), device->getAddress().asAddress());
 		device->setSession(session);
 		session->initiateOutgoing();
 		session->getPrivate()->createOp();
 		//FIXME jehan check conference server  potential impact
-		Address contactAddr(q->getConference()->getConferenceAddress());
+		Address contactAddr(q->getConference()->getConferenceAddress().asAddress());
 		contactAddr.setParam("isfocus");
 		contactAddr.setParam("text");
 		session->getPrivate()->getOp()->setContactAddress(contactAddr.getInternalAddress());
@@ -1023,7 +1026,7 @@ void ServerGroupChatRoomPrivate::onParticipantDeviceLeft (const std::shared_ptr<
 			mainDb->deleteChatRoomParticipant(q->getSharedFromThis(), participant->getAddress());
 		}
 	}
-	
+
 	//device left, we no longuer need to receive subscription info from it
 	if (device->isSubscribedToConferenceEventPackage()) {
 		lError() << q << " still subscription pending for [" << device << "], terminating in emergency";
@@ -1034,7 +1037,7 @@ void ServerGroupChatRoomPrivate::onParticipantDeviceLeft (const std::shared_ptr<
 		linphone_event_terminate(device->getConferenceSubscribeEvent());
 		device->setConferenceSubscribeEvent(nullptr);
 	}
-	
+
 	/* if all devices of participants are left we'll delete the chatroom*/
 	bool allLeft = true;
 	for (const auto &participant : q->cachedParticipants){
@@ -1095,16 +1098,16 @@ std::shared_ptr<Participant> ServerGroupChatRoomPrivate::getOtherParticipant(con
 void ServerGroupChatRoomPrivate::onBye(const shared_ptr<ParticipantDevice> &participantLeaving){
 	L_Q();
 	bool shouldRemoveParticipant = true;
-	
+
 	if (capabilities & ServerGroupChatRoom::Capabilities::OneToOne ){
 		if (protocolVersion < Utils::Version(1, 1)){
-			/* 
+			/*
 			* In protocol 1.0, unlike normal group chatrooms, a participant can never leave a one to one chatroom.
 			* The receiving of BYE is instead interpreted as a termination of the SIP session specific for the device.
 			*/
 			shouldRemoveParticipant = false;
 		}else{
-			/* 
+			/*
 			* In subsequent protocol versions, both participants of a one to one chatroom are removed,
 			* which terminates the chatroom forever.
 			*/
@@ -1371,7 +1374,7 @@ bool ServerGroupChatRoom::addParticipant (const IdentityAddress &participantAddr
 	return true;
 }
 
-const ConferenceAddress ServerGroupChatRoom::getConferenceAddress () const {
+const ConferenceAddress &ServerGroupChatRoom::getConferenceAddress () const {
 	return getConference()->getConferenceAddress();
 }
 

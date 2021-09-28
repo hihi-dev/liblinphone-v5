@@ -1,6 +1,6 @@
 ############################################################################
 # CMakeLists.txt
-# Copyright (C) 2017  Belledonne Communications, Grenoble France
+# Copyright (C) 2010-2021 Belledonne Communications, Grenoble France
 #
 ############################################################################
 #
@@ -56,22 +56,23 @@ if(MSVC)
 endif()
 target_compile_definitions(linphone++ PRIVATE "-DLINPHONECXX_EXPORTS")
 target_link_libraries(linphone++
-	PRIVATE ${BCTOOLBOX_CORE_LIBRARIES} ${BELLESIP_LIBRARIES} linphone
+	PRIVATE bctoolbox bellesip linphone
 )
 
 set_target_properties(linphone++ PROPERTIES
 	FRAMEWORK TRUE
 	MACOSX_FRAMEWORK_IDENTIFIER org.linphone.linphonecpp
-	MACOSX_FRAMEWORK_INFO_PLIST "${CMAKE_SOURCE_DIR}/build/osx/Info.plist.in"
+	MACOSX_FRAMEWORK_INFO_PLIST "${PROJECT_SOURCE_DIR}/build/osx/Info.plist.in"
 )
 
 target_include_directories(linphone++
-	PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/include
-	PRIVATE ${PROJECT_BINARY_DIR}/include
-	PRIVATE ${PROJECT_SOURCE_DIR}/include
-	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-	PRIVATE ${BCTOOLBOX_INCLUDE_DIRS}
-	PRIVATE ${BELLESIP_INCLUDE_DIRS}
+	PUBLIC
+		$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+		$<INSTALL_INTERFACE:include>
+	PRIVATE
+		${PROJECT_BINARY_DIR}/include
+		${PROJECT_SOURCE_DIR}/include
 )
 set_target_properties(linphone++ PROPERTIES SOVERSION ${LINPHONE_SO_VERSION})
 
@@ -94,9 +95,11 @@ write_basic_package_version_file(
 	VERSION ${PROJECT_VERSION}
 	COMPATIBILITY AnyNewerVersion
 )
-export(EXPORT LinphoneCxxTargets
-	FILE "${CMAKE_CURRENT_BINARY_DIR}/LinphoneCxxTargets.cmake"
-)
+if(LINPHONE_BUILDER_GROUP_EXTERNAL_SOURCE_PATH_BUILDERS)
+	export(EXPORT LinphoneCxxTargets
+		FILE "${CMAKE_CURRENT_BINARY_DIR}/LinphoneCxxTargets.cmake"
+	)
+endif()
 configure_file(LinphoneCxxConfig.cmake.in LinphoneCxxConfig.cmake @ONLY)
 
 install(EXPORT LinphoneCxxTargets
@@ -114,15 +117,9 @@ if(ENABLE_DOC OR ENABLE_CXX_WRAPPER)
 	if(DOXYGEN_FOUND)
 		set(top_srcdir "${PROJECT_SOURCE_DIR}")
 
-		# Check git describe to see if we are on a release or not
-		set(LINPHONE_STATE "snapshots")
-		execute_process(COMMAND ${GIT_EXECUTABLE} describe OUTPUT_VARIABLE GIT_DESC)
-		if(NOT GIT_DESC MATCHES ".*(alpha|beta).*")
-			set(LINPHONE_STATE "releases")
-		endif()
 		# Remove everything after the last point in LINPHONE_VERSION (4.5.0 --> 4.5) to create STRIPPED_LINPHONE_VERSION
 		string(REGEX REPLACE "\\.[^.]*$" "" STRIPPED_LINPHONE_VERSION ${LINPHONE_VERSION})
-		# Replace @LINPHONE_STATE@ and @STRIPPED_LINPHONE_VERSION@ in site main page
+		# Replace @LINPHONESDK_STATE@ and @STRIPPED_LINPHONE_VERSION@ in site main page
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/doxygen.dox.in ${CMAKE_CURRENT_BINARY_DIR}/doxygen.dox)
 
 		set(DOXYGEN_INPUT "")
@@ -144,8 +141,9 @@ if(ENABLE_DOC OR ENABLE_CXX_WRAPPER)
 			linphone-cxx-wrapper
 		)
 		add_custom_target(linphone-cpp-html-doc ALL DEPENDS "${CPP_HTML_DIR}/index.html")
-
-		install(DIRECTORY "${CPP_HTML_DIR}"
-			DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/liblinphone-${LINPHONE_VERSION}")
+		if(ENABLE_DOC)
+			install(DIRECTORY "${CPP_HTML_DIR}"
+				DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/liblinphone-${LINPHONE_VERSION}")
+		endif()
 	endif()
 endif()

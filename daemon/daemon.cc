@@ -470,11 +470,14 @@ void Daemon::initCommands() {
 	mCommands.push_back(new CallResumeCommand());
 	mCommands.push_back(new CallTransferCommand());
 	mCommands.push_back(new Video());
+	mCommands.push_back(new Video::Preview());
 	mCommands.push_back(new VideoSource());
 	mCommands.push_back(new VideoSourceGet());
 	mCommands.push_back(new VideoSourceList());
 	mCommands.push_back(new VideoSourceSet());
 	mCommands.push_back(new VideoSourceReload());
+	mCommands.push_back(new VideoDisplayGet());
+	mCommands.push_back(new VideoDisplaySet());
 	mCommands.push_back(new AutoVideo());
 	mCommands.push_back(new ConferenceCommand());
 	mCommands.push_back(new AudioCodecGetCommand());
@@ -936,8 +939,11 @@ static void sighandler(int signum){
 		the_app = NULL;
 	}
 }
-
+#if defined(__APPLE__)
+extern "C" int apple_main(int argc, char **argv){
+#else
 int main(int argc, char *argv[]) {
+#endif
 	const char *config_path = NULL;
 	const char *factory_config_path = NULL;
 	const char *pipe_name = NULL;

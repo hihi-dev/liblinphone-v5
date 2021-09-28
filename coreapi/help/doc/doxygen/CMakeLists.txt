@@ -25,15 +25,9 @@ if(ENABLE_DOC OR ENABLE_CXX_WRAPPER OR ENABLE_CSHARP_WRAPPER OR ENABLE_JAVA_WRAP
 	if(DOXYGEN_FOUND)
 		set(top_srcdir "${PROJECT_SOURCE_DIR}")
 
-		# Check git describe to see if we are on a release or not
-		set(LINPHONE_STATE "snapshots")
-		execute_process(COMMAND ${GIT_EXECUTABLE} describe OUTPUT_VARIABLE GIT_DESC)
-		if(NOT GIT_DESC MATCHES ".*(alpha|beta).*")
-			set(LINPHONE_STATE "releases")
-		endif()
 		# Remove everything after the last point in LINPHONE_VERSION (4.5.0 --> 4.5) to create STRIPPED_LINPHONE_VERSION
 		string(REGEX REPLACE "\\.[^.]*$" "" STRIPPED_LINPHONE_VERSION ${LINPHONE_VERSION})
-		# Replace @LINPHONE_STATE@ and @STRIPPED_LINPHONE_VERSION@ in site main page
+		# Replace @LINPHONESDK_STATE@ and @STRIPPED_LINPHONE_VERSION@ in site main page
 		configure_file(${CMAKE_CURRENT_SOURCE_DIR}/doxygen.dox.in ${CMAKE_CURRENT_BINARY_DIR}/doxygen.dox)
 
 		set(DOXYGEN_INPUT "")
@@ -61,9 +55,10 @@ if(ENABLE_DOC OR ENABLE_CXX_WRAPPER OR ENABLE_CSHARP_WRAPPER OR ENABLE_JAVA_WRAP
 			DEPENDS ${DOC_INPUT_FILES}
 		)
 		add_custom_target(linphone-doc ALL DEPENDS "${XML_DIR}/index.xml" "${C_HTML_DIR}/index.html")
-
-		install(DIRECTORY "${C_HTML_DIR}"
-			DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/liblinphone-${LINPHONE_VERSION}")
+		if(ENABLE_DOC)
+			install(DIRECTORY "${C_HTML_DIR}"
+				DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/liblinphone-${LINPHONE_VERSION}")
+		endif()
 	endif()
 endif()
 

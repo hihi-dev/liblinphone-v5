@@ -426,11 +426,18 @@ static void call_forking_cancelled(void){
 	/*pauline finally cancels the call*/
 	linphone_call_terminate(linphone_core_get_current_call(pauline->lc));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallEnd,1,5000));
+	// Wait for call to be released
+	BC_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallReleased,1,5000));
 
 	/*all devices should stop ringing*/
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallEnd,1,5000));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie2->stat.number_of_LinphoneCallEnd,1,5000));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie3->stat.number_of_LinphoneCallEnd,1,5000));
+
+	BC_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallReleased,1,5000));
+	BC_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallReleased,1,5000));
+	BC_ASSERT_TRUE(wait_for_list(lcs,&marie2->stat.number_of_LinphoneCallReleased,1,5000));
+	BC_ASSERT_TRUE(wait_for_list(lcs,&marie3->stat.number_of_LinphoneCallReleased,1,5000));
 
 	linphone_core_manager_destroy(pauline);
 	linphone_core_manager_destroy(marie);
@@ -504,15 +511,18 @@ static void call_forking_declined_localy(void){
 
 static void call_forking_with_push_notification_single(void){
 	bctbx_list_t* lcs;
-	LinphoneCoreManager* marie = linphone_core_manager_new2( "marie_rc", FALSE);
-	LinphoneCoreManager* pauline = linphone_core_manager_new2( transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc",FALSE);
+	LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check( "marie_rc", FALSE);
+	LinphoneCoreManager* pauline = linphone_core_manager_new_with_proxies_check( transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc",FALSE);
+	LinphoneCall *pauline_call = NULL;
 	int dummy=0;
 
 	linphone_core_set_user_agent(marie->lc,"Natted Linphone",NULL);
 	linphone_core_set_user_agent(pauline->lc,"Natted Linphone",NULL);
-	linphone_proxy_config_set_contact_uri_parameters(
-		linphone_core_get_default_proxy_config(marie->lc),
+	LinphoneProxyConfig *marie_proxy = linphone_core_get_default_proxy_config(marie->lc);
+	linphone_proxy_config_edit(marie_proxy);
+	linphone_proxy_config_set_contact_uri_parameters(marie_proxy, 
 		"app-id=org.linphonetester;pn-tok=aaabbb;pn-type=apple;pn-msg-str=33;pn-call-str=34;");
+	linphone_proxy_config_done(marie_proxy);
 
 	lcs=bctbx_list_append(NULL,pauline->lc);
 	lcs=bctbx_list_append(lcs,marie->lc);
@@ -543,13 +553,16 @@ static void call_forking_with_push_notification_single(void){
 		BC_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallStreamsRunning,1,5000));
 
 		liblinphone_tester_check_rtcp(pauline,marie);
+		pauline_call = linphone_core_get_current_call(pauline->lc);
+		if( !BC_ASSERT_PTR_NOT_NULL(pauline_call)) goto end;
 
-		linphone_call_terminate(linphone_core_get_current_call(pauline->lc));
+		linphone_call_terminate(pauline_call);
 		BC_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallEnd,1,5000));
 		BC_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallEnd,1,5000));
 		BC_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallReleased,1,5000));
 		BC_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallReleased,1,5000));
 	}
+end:
 	linphone_core_manager_destroy(pauline);
 	linphone_core_manager_destroy(marie);
 	bctbx_list_free(lcs);
@@ -561,8 +574,8 @@ static void call_forking_with_push_notification_single(void){
 **/
 static void call_forking_with_push_notification_double_contact(void){
 	bctbx_list_t* lcs;
-	LinphoneCoreManager* marie = linphone_core_manager_new2( "marie_rc", FALSE);
-	LinphoneCoreManager* pauline = linphone_core_manager_new2( transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc",FALSE);
+	LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check( "marie_rc", FALSE);
+	LinphoneCoreManager* pauline = linphone_core_manager_new_with_proxies_check( transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc",FALSE);
 	int dummy=0;
 
 
@@ -570,9 +583,11 @@ static void call_forking_with_push_notification_double_contact(void){
 	linphone_config_set_int(linphone_core_get_config(pauline->lc), "sip", "unregister_previous_contact", 1);
 	linphone_core_set_user_agent(marie->lc,"Natted Linphone",NULL);
 	linphone_core_set_user_agent(pauline->lc,"Natted Linphone",NULL);
-	linphone_proxy_config_set_contact_uri_parameters(
-		linphone_core_get_default_proxy_config(marie->lc),
+	LinphoneProxyConfig *marie_proxy = linphone_core_get_default_proxy_config(marie->lc);
+	linphone_proxy_config_edit(marie_proxy);
+	linphone_proxy_config_set_contact_uri_parameters(marie_proxy, 
 		"app-id=org.linphonetester;pn-tok=aaabbb;pn-type=apple;pn-msg-str=33;pn-call-str=34;");
+	linphone_proxy_config_done(marie_proxy);
 
 	lcs=bctbx_list_append(NULL,pauline->lc);
 	lcs=bctbx_list_append(lcs,marie->lc);
@@ -700,7 +715,7 @@ static void call_forking_not_responded(void){
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallEnd,1,5000));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie2->stat.number_of_LinphoneCallEnd,1,5000));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie3->stat.number_of_LinphoneCallEnd,1,5000));
-	
+
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallReleased,1,5000));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie2->stat.number_of_LinphoneCallReleased,1,5000));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie3->stat.number_of_LinphoneCallReleased,1,5000));
@@ -825,7 +840,7 @@ static void call_with_sips(void){
 
 		BC_ASSERT_TRUE(wait_for_list(lcs,&pauline1->stat.number_of_LinphoneCallReleased,1,3000));
 		BC_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallReleased,1,3000));
-		
+
 		linphone_core_manager_destroy(marie);
 		linphone_core_manager_destroy(pauline1);
 		linphone_core_manager_destroy(pauline2);
@@ -906,12 +921,12 @@ static void _call_with_ipv6(bool_t caller_with_ipv6, bool_t callee_with_ipv6) {
 		return;
 	}
 
-	marie = linphone_core_manager_new2( "marie_rc", FALSE);
+	marie = linphone_core_manager_new_with_proxies_check( "marie_rc", FALSE);
 	linphone_core_remove_supported_tag(marie->lc,"gruu"); // With gruu, we have no access to the "public IP from contact
 	linphone_core_enable_ipv6(marie->lc, caller_with_ipv6);
 	linphone_core_manager_start(marie, TRUE);
 
-	pauline = linphone_core_manager_new2( transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc", FALSE);
+	pauline = linphone_core_manager_new_with_proxies_check( transport_supported(LinphoneTransportTls) ? "pauline_rc" : "pauline_tcp_rc", FALSE);
 	linphone_core_remove_supported_tag(pauline->lc,"gruu"); // With gruu, we have no access to the "public IP from contact
 	linphone_core_enable_ipv6(pauline->lc, callee_with_ipv6);
 	linphone_core_manager_start(pauline, TRUE);
@@ -964,18 +979,24 @@ static void file_transfer_message_rcs_to_external_body_client(void) {
 		FILE *file_to_send = NULL;
 		size_t file_size;
 		char *send_filepath = bc_tester_res("images/nowebcamCIF.jpg");
-		LinphoneCoreManager* marie = linphone_core_manager_new2( "marie_rc", FALSE);
-		LinphoneCoreManager* pauline = linphone_core_manager_new2( "pauline_rc", FALSE);
+		LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check( "marie_rc", FALSE);
+		LinphoneCoreManager* pauline = linphone_core_manager_new_with_proxies_check( "pauline_rc", FALSE);
 		// This is done to prevent register to be sent before the custom header is set
 		linphone_core_set_network_reachable(marie->lc, FALSE);
 		linphone_core_set_network_reachable(pauline->lc, FALSE);
 
-		linphone_proxy_config_set_custom_header(linphone_core_get_default_proxy_config(marie->lc), "Accept", "application/sdp");
+		LinphoneProxyConfig *config_marie = linphone_core_get_default_proxy_config(marie->lc);
+		linphone_proxy_config_edit(config_marie);
+		linphone_proxy_config_set_custom_header(config_marie, "Accept", "application/sdp");
+		linphone_proxy_config_done(config_marie);
 		linphone_core_set_network_reachable(marie->lc, TRUE);
 		linphone_core_manager_start(marie, TRUE);
 
 
-		linphone_proxy_config_set_custom_header(linphone_core_get_default_proxy_config(pauline->lc), "Accept", "application/sdp, text/plain, application/vnd.gsma.rcs-ft-http+xml");
+		LinphoneProxyConfig *config_pauline = linphone_core_get_default_proxy_config(pauline->lc);
+		linphone_proxy_config_edit(config_pauline);
+		linphone_proxy_config_set_custom_header(config_pauline, "Accept", "application/sdp, text/plain, application/vnd.gsma.rcs-ft-http+xml");
+		linphone_proxy_config_done(config_pauline);
 		linphone_core_set_network_reachable(pauline->lc, TRUE);
 		linphone_core_manager_start(pauline, TRUE);
 
@@ -1050,7 +1071,7 @@ static void dos_module_trigger(void) {
 	uint64_t time_begin, time_current;
 	int message_sent_index = 0;
 	int message_to_send_index = 0;
-	
+
 	reset_counters(&marie->stat);
 	reset_counters(&pauline->stat);
 
@@ -1075,7 +1096,7 @@ static void dos_module_trigger(void) {
 	// At this point we should be banned for a minute
 	BC_ASSERT_GREATER(message_sent_index, message_rate, int, "%d");
 	BC_ASSERT_LOWER_STRICT(marie->stat.number_of_LinphoneMessageReceived, message_sent_index - message_rate, int, "%d");
-	
+
 	wait_for_until(marie->lc, pauline->lc, &dummy, 1, 65000); // Wait several seconds to ensure we are not banned anymore
 
 	/*
@@ -1084,7 +1105,7 @@ static void dos_module_trigger(void) {
 	   No data can be send until all retransmissions succeeds.
 	*/
 	wait_for_until(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneMessageReceived, message_sent_index, 60000);
-	
+
 	reset_counters(&marie->stat);
 	reset_counters(&pauline->stat);
 	chat_msg = linphone_chat_room_create_message_from_utf8(chat_room, passmsg);
@@ -1128,7 +1149,7 @@ static void test_subscribe_notify_with_sipp_publisher(void) {
 	scen = bc_tester_res("sipp/simple_publish.xml");
 
 	sip_example_org = linphone_core_manager_resolve(marie, marie->identity);
-	sipp_out = sip_start(scen, linphone_address_get_username(marie->identity), linphone_auth_info_get_passwd(marie_auth), sip_example_org);
+	sipp_out = sip_start(scen, linphone_address_get_username(marie->identity), linphone_auth_info_get_password(marie_auth), sip_example_org);
 	linphone_address_unref(sip_example_org);
 
 	if (sipp_out) {
@@ -1190,10 +1211,16 @@ static void test_publish_unpublish(void) {
 	LinphoneCoreManager* marie = linphone_core_manager_new( "marie_rc");
 	LinphoneProxyConfig* proxy = linphone_core_get_default_proxy_config(marie->lc);
 
+	LinphoneCoreCbs *callbacks = linphone_factory_create_core_cbs(linphone_factory_get());
+
+	linphone_core_cbs_set_publish_state_changed(callbacks, linphone_publish_state_changed);
+	_linphone_core_add_callbacks(marie->lc, callbacks, TRUE);
+	linphone_core_cbs_unref(callbacks);
+
 	setPublish(proxy, TRUE);
-	wait_for(marie->lc, NULL, NULL, 0);
+	BC_ASSERT_TRUE(wait_for(marie->lc, NULL, &marie->stat.number_of_LinphonePublishOk, 1));
 	setPublish(proxy, FALSE);
-	wait_for(marie->lc, NULL, NULL, 0);
+	BC_ASSERT_TRUE(wait_for(marie->lc, NULL, &marie->stat.number_of_LinphonePublishCleared, 1));
 	linphone_core_manager_destroy(marie);
 }
 
@@ -1284,7 +1311,7 @@ static void test_subscribe_on_wrong_dialog(void) {
 
 	scen = bc_tester_res("sipp/subscribe_on_wrong_dialog.xml");
 	sip_example_org = linphone_core_manager_resolve(marie, marie->identity);
-	sipp_out = sip_start(scen, linphone_address_get_username(marie->identity),linphone_auth_info_get_passwd(marie_auth), sip_example_org);
+	sipp_out = sip_start(scen, linphone_address_get_username(marie->identity),linphone_auth_info_get_password(marie_auth), sip_example_org);
 	linphone_address_unref(sip_example_org);
 
 	if (sipp_out) {
@@ -1374,7 +1401,7 @@ static void tls_authentication_requested_bad(LinphoneCore *lc, LinphoneAuthInfo 
 	if (method == LinphoneAuthTls){
 
 		char *cert = bc_tester_res("certificates/client/cert2-signed-by-other-ca.pem");
-		char *key = bc_tester_res("certificates/client/key2.pem");
+		char *key = bc_tester_res("certificates/client/key2-signed-by-other-ca.pem");
 
 		linphone_auth_info_set_tls_cert_path(auth_info, cert);
 		linphone_auth_info_set_tls_key_path(auth_info, key);
@@ -1403,7 +1430,7 @@ static void tls_client_auth_try_register(const char *identity, LinphoneCoreAuthe
 	LinphoneCoreCbs *cbs = linphone_factory_create_core_cbs(linphone_factory_get());
 	LinphoneProxyConfig *cfg;
 
-	lcm = linphone_core_manager_new(NULL);
+	lcm = linphone_core_manager_new("empty_rc");
 
 	linphone_core_cbs_set_authentication_requested(cbs, cb);
 	linphone_core_add_callbacks(lcm->lc, cbs);
@@ -1532,7 +1559,7 @@ end:
 }
 
 static void register_without_regid(void) {
-	LinphoneCoreManager *marie = linphone_core_manager_new2("marie_rc", FALSE);
+	LinphoneCoreManager *marie = linphone_core_manager_new_with_proxies_check("marie_rc", FALSE);
 	linphone_core_manager_start(marie,TRUE);
 	LinphoneProxyConfig *cfg=linphone_core_get_default_proxy_config(marie->lc);
 	if(cfg) {
@@ -1572,14 +1599,14 @@ static void test_protection_against_transport_address_reassignation(void){
 	char local_ip[LINPHONE_IPADDR_SIZE] = { 0 };
 	int client_port = (bctbx_random() % 64000) + 1024;
 	LinphoneCall *marie_call;
-	
+
 	LinphoneProxyConfig *cfg = linphone_core_get_default_proxy_config(marie->lc);
 	LinphoneAddress *public_addr = linphone_proxy_config_get_transport_contact(cfg);
-	
+
 	if (!BC_ASSERT_PTR_NOT_NULL(public_addr)) goto end;
-	
-	linphone_core_get_local_ip(marie->lc, liblinphone_tester_ipv6_available() ? AF_INET6 : AF_INET, NULL, local_ip); 
-	
+
+	linphone_core_get_local_ip(marie->lc, liblinphone_tester_ipv6_available() ? AF_INET6 : AF_INET, NULL, local_ip);
+
 	if (strcmp(linphone_address_get_domain(public_addr), local_ip) != 0){
 		ms_warning("Apparently we're running behind a firewall. Exceptionnaly, this test must run with a direct connection to the SIP server.");
 		ms_warning("Test skipped.");
@@ -1587,7 +1614,7 @@ static void test_protection_against_transport_address_reassignation(void){
 	}
 	ms_message("Forced client bind port is %i", client_port);
 	pauline = linphone_core_manager_create("pauline_tcp_rc");
-	
+
 	/*
 	 * Force pauline to register using a specific client port
 	 */
@@ -1609,13 +1636,13 @@ static void test_protection_against_transport_address_reassignation(void){
 	linphone_call_terminate(marie_call);
 	BC_ASSERT_TRUE(wait_for_until(laure->lc,marie->lc,&marie->stat.number_of_LinphoneCallReleased,1,3000));
 	linphone_call_unref(marie_call);
-	
+
 	/*
 	 * Now shutdown pauline properly.
 	 */
 	linphone_core_set_network_reachable(pauline->lc, TRUE);
 	wait_for_until(pauline->lc,marie->lc,&pauline->stat.number_of_LinphoneRegistrationOk,2,3000);
-	
+
 end:
 	if (public_addr) linphone_address_unref(public_addr);
 	linphone_core_manager_destroy(marie);
@@ -1711,9 +1738,10 @@ void sequential_forking(void) {
 	bctbx_list_t* lcs=bctbx_list_append(NULL,pauline->lc);
 
 	/*we don't set marie "q" because it is by default at 1.0 if it is not present (RFC 4596)*/
-	linphone_proxy_config_set_contact_parameters(
-		linphone_core_get_default_proxy_config(marie2->lc),
-		"q=0.5;");
+	LinphoneProxyConfig *marie_proxy = linphone_core_get_default_proxy_config(marie2->lc);
+	linphone_proxy_config_edit(marie_proxy);
+	linphone_proxy_config_set_contact_parameters(marie_proxy, "q=0.5;");
+	linphone_proxy_config_done(marie_proxy);
 
 	linphone_core_manager_start(marie2, TRUE);
 
@@ -1767,13 +1795,16 @@ void sequential_forking_with_timeout_for_highest_priority(void) {
 	bctbx_list_t* lcs=bctbx_list_append(NULL,pauline->lc);
 
 	/*we don't set marie "q" because it is by default at 1.0 if it is not present (RFC 4596)*/
-	linphone_proxy_config_set_contact_parameters(
-		linphone_core_get_default_proxy_config(marie2->lc),
-		"q=0.5;");
+	LinphoneProxyConfig *marie2_proxy = linphone_core_get_default_proxy_config(marie2->lc);
+	linphone_proxy_config_edit(marie2_proxy);
+	linphone_proxy_config_set_contact_parameters(marie2_proxy, "q=0.5;");
+	linphone_proxy_config_done(marie2_proxy);
 
-	linphone_proxy_config_set_contact_parameters(
-		linphone_core_get_default_proxy_config(marie3->lc),
-		"q=0.5;");
+
+	LinphoneProxyConfig *marie3_proxy = linphone_core_get_default_proxy_config(marie3->lc);
+	linphone_proxy_config_edit(marie3_proxy);
+	linphone_proxy_config_set_contact_parameters(marie3_proxy, "q=0.5;");
+	linphone_proxy_config_done(marie3_proxy);
 
 	linphone_core_manager_start(marie2, TRUE);
 	linphone_core_manager_start(marie3, TRUE);
@@ -1817,7 +1848,7 @@ void sequential_forking_with_timeout_for_highest_priority(void) {
 	linphone_call_terminate(linphone_core_get_current_call(pauline->lc));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallEnd,1,10000));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie3->stat.number_of_LinphoneCallEnd,1,10000));
-	
+
 	BC_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallReleased,1,10000));
 	BC_ASSERT_TRUE(wait_for_list(lcs,&marie3->stat.number_of_LinphoneCallReleased,1,10000));
 
@@ -1840,9 +1871,10 @@ void sequential_forking_with_no_response_for_highest_priority(void) {
 	bctbx_list_t* lcs=bctbx_list_append(NULL,pauline->lc);
 
 	/*we don't set marie "q" because it is by default at 1.0 if it is not present (RFC 4596)*/
-	linphone_proxy_config_set_contact_parameters(
-		linphone_core_get_default_proxy_config(marie2->lc),
-		"q=0.5;");
+	LinphoneProxyConfig *marie2_proxy = linphone_core_get_default_proxy_config(marie2->lc);
+	linphone_proxy_config_edit(marie2_proxy);
+	linphone_proxy_config_set_contact_parameters(marie2_proxy, "q=0.5;");
+	linphone_proxy_config_done(marie2_proxy);
 
 	linphone_core_manager_start(marie2, TRUE);
 
@@ -1902,9 +1934,10 @@ void sequential_forking_with_insertion_of_higher_priority(void) {
 	bctbx_list_t* lcs=bctbx_list_append(NULL,pauline->lc);
 
 	/*we don't set marie "q" because it is by default at 1.0 if it is not present (RFC 4596)*/
-	linphone_proxy_config_set_contact_parameters(
-		linphone_core_get_default_proxy_config(marie2->lc),
-		"q=0.5;");
+	LinphoneProxyConfig *marie2_proxy = linphone_core_get_default_proxy_config(marie2->lc);
+	linphone_proxy_config_edit(marie2_proxy);
+	linphone_proxy_config_set_contact_parameters(marie2_proxy, "q=0.5;");
+	linphone_proxy_config_done(marie2_proxy);
 
 	linphone_core_manager_start(marie2, TRUE);
 
@@ -1975,21 +2008,17 @@ void sequential_forking_with_fallback_route(void) {
 	bctbx_list_t *lcs = bctbx_list_append(NULL, pauline->lc);
 
 	/*we set pauline2 and marie to another test server that is configured with a fallback route*/
-	linphone_proxy_config_set_server_addr(
-		linphone_core_get_default_proxy_config(pauline2->lc),
-		external_server_uri);
+	LinphoneProxyConfig *pauline2_proxy = linphone_core_get_default_proxy_config(pauline2->lc);
+	linphone_proxy_config_edit(pauline2_proxy);
+	linphone_proxy_config_set_server_addr(pauline2_proxy, external_server_uri);
+	linphone_proxy_config_set_route(pauline2_proxy, external_server_uri);
+	linphone_proxy_config_done(pauline2_proxy);
 
-	linphone_proxy_config_set_route(
-		linphone_core_get_default_proxy_config(pauline2->lc),
-		external_server_uri);
-
-	linphone_proxy_config_set_server_addr(
-		linphone_core_get_default_proxy_config(marie->lc),
-		external_server_uri);
-
-	linphone_proxy_config_set_route(
-		linphone_core_get_default_proxy_config(marie->lc),
-		external_server_uri);
+	LinphoneProxyConfig *marie_proxy = linphone_core_get_default_proxy_config(marie->lc);
+	linphone_proxy_config_edit(marie_proxy);
+	linphone_proxy_config_set_server_addr(marie_proxy, external_server_uri);
+	linphone_proxy_config_set_route(marie_proxy, external_server_uri);
+	linphone_proxy_config_done(marie_proxy);
 
 	linphone_core_manager_start(pauline2, TRUE);
 	linphone_core_manager_start(marie, TRUE);
@@ -2047,7 +2076,7 @@ static void deal_with_jwe_auth_module(const char *jwe, bool_t invalid_jwe, bool_
 
 	// 1. Register Gandalf.
 	LinphoneCoreCbs *cbs = linphone_factory_create_core_cbs(linphone_factory_get());
-	LinphoneCoreManager *gandalf = linphone_core_manager_new(NULL);
+	LinphoneCoreManager *gandalf = linphone_core_manager_new("empty_rc");
 
 	// Do not use Authentication module.
 	linphone_core_set_user_agent(gandalf->lc, "JweAuth Linphone", NULL);
@@ -2090,7 +2119,7 @@ static void deal_with_jwe_auth_module(const char *jwe, bool_t invalid_jwe, bool_
 	linphone_call_params_unref(gandalf_params);
 
 	int n_expected_calls = invalid_jwe || invalid_oid ? 0 : 1;
-	
+
 	if (n_expected_calls){
 		BC_ASSERT_TRUE(wait_for_list(lcs, &gandalf->stat.number_of_LinphoneCallOutgoingRinging, 1, 3000));
 		BC_ASSERT_TRUE(wait_for_list(lcs, &pauline->stat.number_of_LinphoneCallIncomingReceived, 1, 3000));

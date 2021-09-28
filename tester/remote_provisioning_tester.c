@@ -23,7 +23,7 @@
 #include "tester_utils.h"
 
 static void remote_provisioning_skipped(void) {
-	LinphoneCoreManager* marie = linphone_core_manager_new2("marie_rc", FALSE);
+	LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check("marie_rc", FALSE);
 	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneConfiguringSkipped,1));
 	linphone_core_manager_destroy(marie);
 }
@@ -38,14 +38,14 @@ static void remote_provisioning_http(void) {
 	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneRegistrationOk,1));
 
 	/*make sure proxy config is not added in double, one time at core init, next time at configuring successfull*/
-	BC_ASSERT_EQUAL(bctbx_list_size(linphone_core_get_proxy_config_list(marie->lc)), 1, int,"%i");
+	BC_ASSERT_EQUAL((int)bctbx_list_size(linphone_core_get_proxy_config_list(marie->lc)), 1, int,"%i");
 	BC_ASSERT_FALSE(linphone_friend_list_subscriptions_enabled(list));
 
 	linphone_core_manager_destroy(marie);
 }
 
 static void remote_provisioning_transient(void) {
-	LinphoneCoreManager* marie = linphone_core_manager_new2("marie_transient_remote_rc", FALSE);
+	LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check("marie_transient_remote_rc", FALSE);
 	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneConfiguringSuccessful,1));
 	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneRegistrationOk,1));
 	BC_ASSERT_TRUE(linphone_core_is_provisioning_transient(marie->lc));
@@ -55,7 +55,7 @@ static void remote_provisioning_transient(void) {
 
 static void remote_provisioning_https(void) {
 	if (transport_supported(LinphoneTransportTls)) {
-		LinphoneCoreManager* marie = linphone_core_manager_new2("marie_remote_https_rc", FALSE);
+		LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check("marie_remote_https_rc", FALSE);
 		BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneConfiguringSuccessful,1));
 		BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneRegistrationOk,1));
 		linphone_core_manager_destroy(marie);
@@ -63,26 +63,26 @@ static void remote_provisioning_https(void) {
 }
 
 static void remote_provisioning_not_found(void) {
-	LinphoneCoreManager* marie = linphone_core_manager_new2("marie_remote_404_rc", FALSE);
+	LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check("marie_remote_404_rc", FALSE);
 	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneConfiguringFailed,1));
 	linphone_core_manager_destroy(marie);
 }
 
 static void remote_provisioning_invalid(void) {
-	LinphoneCoreManager* marie = linphone_core_manager_new2("marie_remote_invalid_rc", FALSE);
+	LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check("marie_remote_invalid_rc", FALSE);
 	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneConfiguringFailed,1));
 	linphone_core_manager_destroy(marie);
 }
 
 static void remote_provisioning_invalid_uri(void) {
-	LinphoneCoreManager* marie = linphone_core_manager_new2("marie_remote_invalid_uri_rc", FALSE);
+	LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check("marie_remote_invalid_uri_rc", FALSE);
 	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneConfiguringFailed,1));
 	linphone_core_manager_destroy(marie);
 }
 
 static void remote_provisioning_default_values(void) {
 	LinphoneProxyConfig *lpc;
-	LinphoneCoreManager* marie = linphone_core_manager_new2("marie_remote_default_values_rc", FALSE);
+	LinphoneCoreManager* marie = linphone_core_manager_new_with_proxies_check("marie_remote_default_values_rc", FALSE);
 	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneConfiguringSuccessful,1));
 	lpc = linphone_core_create_proxy_config(marie->lc);
 	BC_ASSERT_TRUE(linphone_proxy_config_register_enabled(lpc));
@@ -98,6 +98,8 @@ static void remote_provisioning_default_values(void) {
 	linphone_core_manager_destroy(marie);
 }
 
+LINPHONE_PUBLIC LinphonePushNotificationConfig* linphone_core_get_push_notification_config(LinphoneCore *core);
+
 static void remote_provisioning_file(void) {
 	LinphoneCoreManager* marie;
 	const LpConfig* conf;
@@ -105,12 +107,13 @@ static void remote_provisioning_file(void) {
 	ms_message("Skipping remote provisioning from file on iOS");
 	return;
 #elif defined(__ANDROID__)
-	marie = linphone_core_manager_new2("marie_remote_localfile_android_rc", FALSE);
+	marie = linphone_core_manager_new_with_proxies_check("marie_remote_localfile_android_rc", FALSE);
 #elif defined(LINPHONE_WINDOWS_UNIVERSAL)
-	marie = linphone_core_manager_new2("marie_remote_localfile_win10_rc", FALSE);
+	marie = linphone_core_manager_new_with_proxies_check("marie_remote_localfile_win10_rc", FALSE);
 #else
 	marie = ms_new0(LinphoneCoreManager, 1);
 	linphone_core_manager_init(marie, "marie_remote_localfile_rc",NULL);
+	
 	// fix relative path to absolute path
 	{
 		char* path = bc_tester_res("rcfiles/marie_remote_localfile2_rc");
@@ -125,10 +128,46 @@ static void remote_provisioning_file(void) {
 
 	conf = linphone_core_get_config( marie->lc );
 	BC_ASSERT_EQUAL( linphone_config_get_int(conf,"misc","tester_file_ok", 0), 1 , int, "%d");
-
 	linphone_core_manager_destroy(marie);
 }
 
+static void remote_provisioning_check_push_params(void) {
+	LinphoneCoreManager* marie = linphone_core_manager_create("marie_remote_rc");
+	
+	linphone_push_notification_config_set_voip_token(linphone_core_get_push_notification_config(marie->lc), "token:voip");
+	linphone_push_notification_config_set_bundle_identifier(linphone_core_get_push_notification_config(marie->lc), "linphone-tester");
+	linphone_push_notification_config_set_param(linphone_core_get_push_notification_config(marie->lc), "param");
+	
+	linphone_core_manager_start(marie, FALSE);
+	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneConfiguringSuccessful,1));
+	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneRegistrationOk,1));
+
+	/*make sure proxy config is not added in double, one time at core init, next time at configuring successfull*/
+	BC_ASSERT_EQUAL((int)bctbx_list_size(linphone_core_get_proxy_config_list(marie->lc)), 1, int,"%i");
+	
+	LinphoneAccount *marie_account = linphone_core_get_default_account(marie->lc);
+	BC_ASSERT_PTR_NOT_NULL(marie_account);
+	
+	LinphoneAccountParams *marie_params = linphone_account_params_clone(linphone_account_get_params(marie_account));
+
+	BC_ASSERT_STRING_EQUAL(linphone_push_notification_config_get_voip_token(linphone_account_params_get_push_notification_config(marie_params)), "token:voip");
+	BC_ASSERT_STRING_EQUAL(linphone_push_notification_config_get_bundle_identifier(linphone_account_params_get_push_notification_config(marie_params)), "linphone-tester");
+	BC_ASSERT_STRING_EQUAL(linphone_push_notification_config_get_param(linphone_account_params_get_push_notification_config(marie_params)), "param");
+	
+	
+	linphone_account_params_set_push_notification_allowed(marie_params, TRUE);
+	linphone_account_set_params(marie_account, marie_params);
+	linphone_account_params_unref(marie_params);
+	
+	linphone_core_set_push_notification_enabled(marie->lc, TRUE);
+	BC_ASSERT_TRUE(wait_for(marie->lc,NULL,&marie->stat.number_of_LinphoneRegistrationOk,2));
+	
+	const LinphoneAccountParams *updated_marie_params = linphone_account_get_params(marie_account);
+	const char *prid = linphone_push_notification_config_get_prid(linphone_account_params_get_push_notification_config(updated_marie_params));
+	BC_ASSERT_STRING_EQUAL(prid, "token:voip"); // Ensure that push parameters have been generated for the new register
+	
+	linphone_core_manager_destroy(marie);
+}
 
 test_t remote_provisioning_tests[] = {
 	TEST_NO_TAG("Remote provisioning skipped", remote_provisioning_skipped),
@@ -139,7 +178,8 @@ test_t remote_provisioning_tests[] = {
 	TEST_NO_TAG("Remote provisioning transient successful", remote_provisioning_transient),
 	TEST_NO_TAG("Remote provisioning default values", remote_provisioning_default_values),
 	TEST_NO_TAG("Remote provisioning from file", remote_provisioning_file),
-	TEST_NO_TAG("Remote provisioning invalid URI", remote_provisioning_invalid_uri)
+	TEST_NO_TAG("Remote provisioning invalid URI", remote_provisioning_invalid_uri),
+	TEST_NO_TAG("Remote provisioning check if push tokens are not lost", remote_provisioning_check_push_params)
 };
 
 test_suite_t remote_provisioning_test_suite = {"RemoteProvisioning", NULL, NULL, liblinphone_tester_before_each, liblinphone_tester_after_each,

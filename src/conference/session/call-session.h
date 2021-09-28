@@ -36,6 +36,10 @@ class CallSessionPrivate;
 class Content;
 class Core;
 
+namespace MediaConference {
+	class Conference;
+}
+
 class LINPHONE_PUBLIC CallSession : public Object, public CoreAccessor {
 	friend class Call;
 	friend class ClientGroupChatRoom;
@@ -46,6 +50,7 @@ class LINPHONE_PUBLIC CallSession : public Object, public CoreAccessor {
 	friend class ServerGroupChatRoomPrivate;
 	friend class ParticipantDevice;
 
+	friend class MediaConference::LocalConference;
 public:
 	L_OVERRIDE_SHARED_FROM_THIS(CallSession);
 
@@ -71,7 +76,7 @@ public:
 		Updating = LinphoneCallStateUpdating,
 		Released = LinphoneCallStateReleased,
 		EarlyUpdatedByRemote = LinphoneCallStateEarlyUpdatedByRemote,
-		EarlyUpdating
+		EarlyUpdating = LinphoneCallStateEarlyUpdating
 	};
 	//casting to int to get rid of the enum compare warning.
 	//Here we are comparing two enums serving the same purpose
@@ -93,6 +98,8 @@ public:
 	LinphoneStatus declineNotAnswered (LinphoneReason reason);
 	virtual LinphoneStatus deferUpdate ();
 	bool hasTransferPending ();
+	bool isCapabilityNegotiationEnabled() const;
+	const std::list<LinphoneMediaEncryption> getSupportedEncryptions() const;
 	virtual void initiateIncoming ();
 	virtual bool initiateOutgoing ();
 	virtual void iterate (time_t currentRealTime, bool oneSecondElapsed);
@@ -136,15 +143,17 @@ public:
 
 	static bool isEarlyState (CallSession::State state);
 	void accepting ();
+	//bool isDelinedEarly ();
+	//const LinphoneErrorInfo * getErrorInfoCache () const;
 
 protected:
 	explicit CallSession (CallSessionPrivate &p, const std::shared_ptr<Core> &core);
 	CallSession::State getPreviousState () const;
 
 private:
-	bool mIsDeclining = false;
+	//bool mIsDeclining = false;
 	bool mIsAccepting = false;
-	LinphoneErrorInfo *mErrorCache = nullptr;
+	//LinphoneErrorInfo *mErrorCache = nullptr;
 	L_DECLARE_PRIVATE(CallSession);
 	L_DISABLE_COPY(CallSession);
 };

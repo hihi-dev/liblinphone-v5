@@ -133,6 +133,9 @@ public:
   LinphoneChatRoomCbs * createChatRoomCbs() const;
 
   LinphoneChatMessageCbs * createChatMessageCbs() const;
+  LinphoneMagicSearchCbs * createMagicSearchCbs() const;
+  
+  LinphoneDigestAuthenticationPolicy *createDigestAuthenticationPolicy() const;
 
   LinphoneVcard *createVcard() const;
 
@@ -204,6 +207,8 @@ public:
 
   LinphoneTunnelConfig *createTunnelConfig() const;
 
+  LinphoneAccountCbs *createAccountCbs() const;
+
   LinphoneLoggingServiceCbs *createLoggingServiceCbs() const;
 
   LinphonePlayerCbs *createPlayerCbs() const;
@@ -229,6 +234,7 @@ public:
   const std::string & getDownloadDir(void *context);
 
   void setVfsEncryption(const uint16_t encryptionModule, const uint8_t *secret, const size_t secretSize);
+
 
 protected:
   static void _DestroyingCb(void);

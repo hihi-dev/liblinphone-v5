@@ -29,6 +29,7 @@
 #include "chat/chat-message/is-composing-message.h"
 #include "chat/chat-message/notification-message-p.h"
 #include "chat/chat-room/chat-room-p.h"
+#include "content/content-manager.h"
 #include "core/core-p.h"
 #include "logger/logger.h"
 
@@ -152,7 +153,7 @@ void ChatRoomPrivate::realtimeTextReceived (uint32_t character, const shared_ptr
 
 		if ((character == NEW_LINE) || (character == CRLF) || (character == LF)) {
 			// End of message
-			string completeText = Utils::utf8ToString(lastMessageCharacters);
+			string completeText = Utils::unicodeToUtf8(lastMessageCharacters);
 
 			shared_ptr<ChatMessage> pendingMessage = q->createChatMessage();
 			pendingMessage->getPrivate()->setDirection(ChatMessage::Direction::Incoming);
@@ -173,7 +174,7 @@ void ChatRoomPrivate::realtimeTextReceived (uint32_t character, const shared_ptr
 			lastMessageCharacters.clear();
 		} else {
 			lastMessageCharacters.push_back(character);
-			string completeText = Utils::utf8ToString(lastMessageCharacters);
+			string completeText = Utils::unicodeToUtf8(lastMessageCharacters);
 			bctbx_debug("Received RTT character: [%llu], pending text is [%s]", character, completeText.c_str());
 		}
 	}
@@ -380,7 +381,7 @@ void ChatRoomPrivate::onChatMessageReceived (const shared_ptr<ChatMessage> &chat
 	LinphoneCore *cCore = core->getCCore();
 
 	if (chatMessage->getPrivate()->getContentType() == ContentType::ImIsComposing) {
-		onIsComposingReceived(chatMessage->getFromAddress(), chatMessage->getPrivate()->getText());
+		onIsComposingReceived(chatMessage->getFromAddress().asAddress(), chatMessage->getPrivate()->getText());
 		if (linphone_config_get_int(linphone_core_get_config(cCore), "sip", "deliver_imdn", 0) != 1)
 			return;
 	} else if (chatMessage->getPrivate()->getContentType() == ContentType::Imdn) {
@@ -394,7 +395,7 @@ void ChatRoomPrivate::onChatMessageReceived (const shared_ptr<ChatMessage> &chat
 		&& (chatMessage->getPrivate()->getContentType() != ContentType::Imdn)
 	) {
 		isComposingHandler->stopRemoteRefreshTimer(fromAddress.asString());
-		notifyIsComposingReceived(fromAddress, false);
+		notifyIsComposingReceived(fromAddress.asAddress(), false);
 	}
 	chatMessage->getPrivate()->notifyReceiving();
 }
@@ -639,6 +640,13 @@ shared_ptr<ChatMessage> ChatRoom::createForwardMessage (const shared_ptr<ChatMes
 
 	return chatMessage;
 }
+
+shared_ptr<ChatMessage> ChatRoom::createReplyMessage (const shared_ptr<ChatMessage> &msg) {
+	shared_ptr<ChatMessage> chatMessage = createChatMessage();
+	chatMessage->getPrivate()->setReplyToMessageIdAndSenderAddress(msg->getImdnMessageId(), msg->getFromAddress().getAddressWithoutGruu());
+	return chatMessage;
+}
+
 // -----------------------------------------------------------------------------
 
 shared_ptr<ChatMessage> ChatRoom::findChatMessage (const string &messageId) const {
@@ -661,6 +669,7 @@ void ChatRoom::markAsRead () {
 	CorePrivate *dCore = getCore()->getPrivate();
 	for (auto &chatMessage : dCore->mainDb->getUnreadChatMessages(getConferenceId())) {
 		chatMessage->getPrivate()->markAsRead();
+		
 		// Do not set the message state has displayed if it contains a file transfer (to prevent imdn sending)
 		if (!chatMessage->getPrivate()->hasFileTransferContent()) {
 			chatMessage->getPrivate()->setState(ChatMessage::State::Displayed);

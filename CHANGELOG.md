@@ -8,9 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 This changelog file was started on October 2019. Previous changes were more or less tracked in the *NEWS* file.
 
-## [Unreleased]
+## [5.0.0] 2021-07-08
 
-## [4.5.2] 2021-04-14
+### Added
+- Native support of Windows 10 UWP platform
+- CoreService class for Android can make the device vibrate while incoming call is ringing.
+- Support of Capability Negociation framework - RFC5939 - limited to media encryption choice (None, SRTP, DTLS-SRTP, ZRTP)
+- Automatic handling of push notifications for iOS and Android. 
+  * A new state LinphoneCallPushIncomingReceived is added to the LinphoneCall's state machine.
+  * New LinphonePushNotificationConfig object added to the API.
+- New API to manage SIP accounts: LinphoneAccount and LinphoneAccountParams, replacing LinphoneProxyConfig which is now deprecated.
+  LinphoneProxyConfig remains fully usable for backward compatibility with previous version.
+- New implementation of LinphoneAccountCreator relying on http REST API. Previous implementation based on XML-RPC remains the default one,
+  but will be deprecated in a future release.
+- Added LDAP contact provider API integrated with LinphoneMagicSearch (desktop platforms ONLY)
+- Added asynchronous API to the LinphoneMagicSearch API (for contact searching).
+
+### Changed
+- Java wrapper now creates a separated managed object for const native pointers and print an error log when trying to use a non-const method on it.
+- Java & C# wrapper now takes a strong reference on listeners, allowing to use inner classes & lambda expressions even without keeping parent object around.
+- Deprecated methods for more than two years have been removed from wrappers (e.g. every setListener() on some objects).
+- Automatic BYEing of orphan dialogs - this task no longer needs to be done by the proxy, conforming to RFC3261.
+- Generation of C# API documentation now with DocFX.
+
+### Removed
+- Legacy Java wrapper for Android
+
+### Fixed
+- Erroneous ICE ufrag and passwd parameters sent in reINVITE while ICE was refused previously.
+- Swift and C# wrappers corner-case usage issues.
+- See git log for full list of other minor bugfixes.
 
 ### Added
 - CoreService class for Android can make the device vibrate while incoming call is ringing.
@@ -22,7 +49,7 @@ This changelog file was started on October 2019. Previous changes were more or l
 - Automatic handling of some mobile OS behaviours
   * enterForeground() and enterBackground() automatically called (iOS and Android).
   * auto acquire and release of audio focus for Android.
-  * Core.iterate() is being called automatically internally for Android, it is no longer needed to create a timer in the application to call it.
+  * Core.iterate() is being called automatically internally for Android & iOS, it is no longer needed to create a timer in the application to call it.
 - New audio routes API to choose which device use to capture & play audio (Android & iOS). The application can manage
   audio route changes (bluetooth, speaker, earpiece) throug liblinphone's API.
 - Added API to play user's ringtone instead of default ringtone for Android.
@@ -30,7 +57,6 @@ This changelog file was started on October 2019. Previous changes were more or l
 - iOS: added linphone_core_configure_audio_session() to be called when used with Callkit
   see specific documentation here: https://wiki.linphone.org/xwiki/wiki/public/view/Lib/Getting%20started/iOS/#HCallKitintegration
 - client-based video conference in active speaker switching mode (beta feature).
-
 
 ### Changed
 - Warning: some function parameters have been renamed for consistency, which modified the Swift API (where parameter names are part of the ABI).

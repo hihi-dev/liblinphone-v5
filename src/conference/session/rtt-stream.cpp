@@ -70,7 +70,7 @@ void MS2RTTStream::finishPrepare(){
 }
 
 void MS2RTTStream::render(const OfferAnswerContext &params, CallSession::State targetState){
-	const SalStreamDescription *tstream = params.resultStreamDescription;
+	const auto & tstream = params.getResultStreamDescription();
 	bool basicChangesHandled = handleBasicChanges(params, targetState);
 	
 	if (basicChangesHandled) {
@@ -126,7 +126,12 @@ MediaStream *MS2RTTStream::getMediaStream()const{
 void MS2RTTStream::handleEvent(const OrtpEvent *ev){
 }
 
+void MS2RTTStream::initZrtp() {
 
+}
 
+void MS2RTTStream::startZrtp() {
+
+}
 
 LINPHONE_END_NAMESPACE

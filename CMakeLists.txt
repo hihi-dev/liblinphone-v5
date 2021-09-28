@@ -1,6 +1,6 @@
 ############################################################################
 # CMakeLists.txt
-# Copyright (C) 2010-2019  Belledonne Communications, Grenoble France
+# Copyright (C) 2010-2021 Belledonne Communications, Grenoble France
 #
 ############################################################################
 #
@@ -20,8 +20,12 @@
 #
 ############################################################################
 
-cmake_minimum_required(VERSION 3.1)
-project(linphone VERSION 4.5.0 LANGUAGES C CXX)
+
+# CMake 3.13 required for new Flexisip build process.
+# See [CMP077](https://cmake.org/cmake/help/v3.13/policy/CMP0077.html).
+cmake_minimum_required(VERSION 3.13)
+
+project(linphone VERSION 5.0.0 LANGUAGES C CXX)
 
 
 set(LINPHONE_MAJOR_VERSION ${PROJECT_VERSION_MAJOR})
@@ -45,6 +49,7 @@ option(ENABLE_CONSOLE_UI "Turn on or off compilation of console interface." YES)
 option(ENABLE_CSHARP_WRAPPER "Build the C# wrapper for Liblinphone." OFF)
 option(ENABLE_CXX_WRAPPER "Build the C++ wrapper for Liblinphone." YES)
 option(ENABLE_DB_STORAGE "Enable database storage." YES)
+option(ENABLE_FLEXIAPI "Enable the FlexiAPI support for Liblinphone." YES)
 option(ENABLE_SWIFT_WRAPPER "Build the swift wrapper sources for Liblinphone." OFF)
 option(ENABLE_SWIFT_WRAPPER_COMPILATION "Compile and package the swift wrapper framework from the built sources." OFF)
 option(ENABLE_JAZZY_DOC "Build the jazzy doc for swift module of Liblinphone." OFF)
@@ -55,8 +60,8 @@ option(ENABLE_DOC "Enable API documentation generation." NO)
 option(ENABLE_LIME_X3DH "Enable LIMEv2 and X3DH encryption protocol." YES)
 option(ENABLE_JAVA_WRAPPER "Build the Java wrapper for Liblinphone." OFF)
 option(ENABLE_JAVADOC "Add a target to generate documentation for Java API" NO)
-option(ENABLE_LDAP "Enable LDAP support." NO)
 option(ENABLE_LIME "Enable Instant Messaging Encryption." YES)
+option(ENABLE_LDAP "Enable LDAP support." NO)
 option(ENABLE_RELATIVE_PREFIX "Find resources relatively to the installation directory." NO)
 option(ENABLE_STRICT "Build with strict compile options." YES)
 option(ENABLE_TOOLS "Turn on or off compilation of tools." YES)
@@ -69,8 +74,13 @@ option(ENABLE_VIDEO "Build with video support." YES)
 option(ENABLE_ASSETS "Package sound assets." YES)
 option(ENABLE_PACKAGE_SOURCE "Create 'package_source' target for source archive making (CMake >= 3.11)" OFF)
 
+
 cmake_dependent_option(ENABLE_NOTIFY "Enable libnotify support." YES "ENABLE_GTK_UI;NOT APPLE" NO)
 cmake_dependent_option(ENABLE_ASSISTANT "Turn on assistant compiling." YES "ENABLE_GTK_UI" NO)
+
+# Hidden non-cache options:
+# * DISABLE_BC_PACKAGE_SEARCH: skip find_package() for every BC package (bctoolbox, ortp, etc.)
+# * DISABLE_SOCI_PACKAGE_SEARCH: skip find_package() for Soci.
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS NO)
@@ -122,11 +132,13 @@ if (ENABLE_VCARD)
 	endif()
 endif()
 
-find_package(BelleSIP CONFIG REQUIRED)
-find_package(Mediastreamer2 CONFIG REQUIRED)
-find_package(ortp CONFIG REQUIRED)
-find_package(bctoolbox 0.0.3 CONFIG REQUIRED OPTIONAL_COMPONENTS tester)
-find_package(belr CONFIG REQUIRED)
+if(NOT DISABLE_BC_PACKAGE_SEARCH)
+	find_package(BelleSIP CONFIG REQUIRED)
+	find_package(Mediastreamer2 CONFIG REQUIRED)
+	find_package(ortp CONFIG REQUIRED)
+	find_package(bctoolbox 0.0.3 CONFIG REQUIRED OPTIONAL_COMPONENTS tester)
+	find_package(belr CONFIG REQUIRED)
+endif()
 
 if(ENABLE_ADVANCED_IM)
 	find_package(XercesC REQUIRED)
@@ -139,11 +151,19 @@ find_package(Sqlite3 REQUIRED)
 find_package(XML2 REQUIRED)
 
 if (ENABLE_DB_STORAGE)
-	#APPLE platform does not use dlopen for soci backend
-	if (APPLE OR ANDROID)
-		find_package(Soci REQUIRED COMPONENTS sqlite3)
+	if(NOT DISABLE_SOCI_PACKAGE_SEARCH)
+		#APPLE platform does not use dlopen for soci backend
+		if (APPLE OR ANDROID)
+			find_package(Soci REQUIRED COMPONENTS sqlite3)
+		else()
+			find_package(Soci REQUIRED)
+		endif()
 	else()
-		find_package(Soci REQUIRED)
+		set(SOCI_FOUND YES)
+		set(SOCI_LIBRARIES soci_core)
+		if (APPLE OR ANDROID)
+			set(SOCI_sqlite3_PLUGIN soci_sqlite3)
+		endif()
 	endif()
 	set(HAVE_DB_STORAGE 1)
 endif()
@@ -193,15 +213,18 @@ if(ENABLE_CXX_WRAPPER OR ENABLE_CSHARP_WRAPPER OR ENABLE_JAVA_WRAPPER OR ENABLE_
 		#check_python_module(swift_domain)
 	endif()
 endif()
+if(ENABLE_LDAP)
+		find_package(OpenLDAP REQUIRED)
+endif()
+
+if (ENABLE_FLEXIAPI)
+	find_package(jsoncpp REQUIRED)
+	set(HAVE_FLEXIAPI TRUE)
+endif()
 
 if(UNIX AND NOT APPLE)
 	include(CheckIncludeFiles)
 	check_include_files(libudev.h HAVE_LIBUDEV_H)
-endif()
-
-if(MSVC AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsPhone" AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
-	find_library(LIBGCC NAMES gcc)
-	find_library(LIBMINGWEX NAMES mingwex)
 endif()
 
 if(NOT WIN32)
@@ -251,6 +274,9 @@ endif()
 if(INTL_FOUND)
 	set(HAVE_INTL 1)
 	list(APPEND LINPHONE_INCLUDE_DIRS ${INTL_INCLUDE_DIRS})
+endif()
+if(OPENLDAP_FOUND)
+	list(APPEND LINPHONE_INCLUDE_DIRS ${OPENLDAP_INCLUDE_DIRS})
 endif()
 if(MSVC)
 	include_directories(${MSVC_INCLUDE_DIR})
@@ -358,6 +384,10 @@ if(ENABLE_VIDEO)
 	add_definitions(-DVIDEO_ENABLED)
 endif()
 
+if(ENABLE_LDAP)
+	add_definitions(-DLDAP_ENABLED -DLDAP_LIBS_DYNAMIC)
+endif()
+
 if(LINPHONE_BUILDER_GROUP_EXTERNAL_SOURCE_PATH_BUILDERS)
 	set(EXPORT_TARGETS_NAME "LinphoneBuilder")
 else()
@@ -365,7 +395,6 @@ else()
 endif()
 
 add_subdirectory(include)
-add_subdirectory(java)
 if(ENABLE_JAVA_WRAPPER)
 	add_subdirectory(wrappers/java)
 endif()
@@ -402,9 +431,11 @@ write_basic_package_version_file(
 	VERSION ${LINPHONE_VERSION}
 	COMPATIBILITY AnyNewerVersion
 )
-export(EXPORT ${EXPORT_TARGETS_NAME}Targets
-	FILE "${CMAKE_CURRENT_BINARY_DIR}/LinphoneTargets.cmake"
-)
+if(LINPHONE_BUILDER_GROUP_EXTERNAL_SOURCE_PATH_BUILDERS)
+	export(EXPORT ${EXPORT_TARGETS_NAME}Targets
+		FILE "${CMAKE_CURRENT_BINARY_DIR}/LinphoneTargets.cmake"
+	)
+endif()
 configure_package_config_file(cmake/LinphoneConfig.cmake.in
 	"${CMAKE_CURRENT_BINARY_DIR}/LinphoneConfig.cmake"
 	INSTALL_DESTINATION ${CONFIG_PACKAGE_LOCATION}

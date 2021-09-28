@@ -45,8 +45,8 @@ void linphone_participant_device_set_user_data(LinphoneParticipantDevice *partic
 }
 
 const LinphoneAddress *linphone_participant_device_get_address(const LinphoneParticipantDevice *participant_device) {
-	LinphonePrivate::Address addr(LinphonePrivate::ParticipantDevice::toCpp(participant_device)->getAddress());
-	return linphone_address_new(addr.asString().c_str());
+	const LinphonePrivate::Address & addr = LinphonePrivate::ParticipantDevice::toCpp(participant_device)->getAddress().asAddress();
+	return L_GET_C_BACK_PTR(&addr);
 }
 
 LinphoneChatRoomSecurityLevel linphone_participant_device_get_security_level (const LinphoneParticipantDevice *participant_device) {
@@ -63,4 +63,16 @@ bool_t linphone_participant_device_is_in_conference (const LinphoneParticipantDe
 
 time_t linphone_participant_device_get_time_of_joining (const LinphoneParticipantDevice *participant_device) {
 	return LinphonePrivate::ParticipantDevice::toCpp(participant_device)->getTimeOfJoining();
+}
+
+LinphoneMediaDirection linphone_participant_device_get_audio_direction (const LinphoneParticipantDevice *participant_device) {
+	return LinphonePrivate::ParticipantDevice::toCpp(participant_device)->getAudioDirection();
+}
+
+LinphoneMediaDirection linphone_participant_device_get_video_direction (const LinphoneParticipantDevice *participant_device) {
+	return LinphonePrivate::ParticipantDevice::toCpp(participant_device)->getVideoDirection();
+}
+
+LinphoneMediaDirection linphone_participant_device_get_text_direction (const LinphoneParticipantDevice *participant_device) {
+	return LinphonePrivate::ParticipantDevice::toCpp(participant_device)->getTextDirection();
 }

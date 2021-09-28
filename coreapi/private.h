@@ -76,7 +76,6 @@
 #include "vcard_private.h"
 #include "carddav.h"
 #include "linphone/player.h"
-#include "account_creator_private.h"
 #include "tester_utils.h"
 
 #include "bctoolbox/port.h"
@@ -108,8 +107,13 @@
 #if defined(__MINGW32__) || !defined(WINAPI_FAMILY_PARTITION) || !defined(WINAPI_PARTITION_DESKTOP)
 #define LINPHONE_WINDOWS_DESKTOP 1
 #elif defined(WINAPI_FAMILY_PARTITION)
+//See bctoolbox/include/port.h for WINAPI_PARTITION checker
 #if defined(WINAPI_PARTITION_DESKTOP) && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 #define LINPHONE_WINDOWS_DESKTOP 1
+#elif defined (WINAPI_PARTITION_PC_APP) && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_PC_APP)
+#define LINPHONE_WINDOWS_DESKTOP 1
+#define LINPHONE_WINDOWS_UNIVERSAL 1
+#define LINPHONE_WINDOWS_UWP 1
 #elif defined(WINAPI_PARTITION_PHONE_APP) && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_PHONE_APP)
 #define LINPHONE_WINDOWS_PHONE 1
 #elif defined(WINAPI_PARTITION_APP) && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP)
@@ -134,6 +138,7 @@
 #define STRING_RESET(field)	if (field) bctbx_free(field); (field) = NULL
 #define STRING_SET(field, value)	do{ if (field){bctbx_free(field);field=NULL;}; field=bctbx_strdup(value); }while(0)
 #define STRING_TRANSFER(field, newvalue)	do{ if (field){bctbx_free(field);field=NULL;}; field=newvalue; }while(0)
+#define STRING_IS_NULL(field) (field == NULL || !strcmp(field, ""))
 
 #ifdef __cplusplus
 #define getPlatformHelpers(lc) static_cast<LinphonePrivate::PlatformHelpers*>(lc->platform_helper)
