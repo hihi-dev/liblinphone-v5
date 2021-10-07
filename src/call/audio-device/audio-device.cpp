@@ -76,6 +76,9 @@ AudioDevice::AudioDevice(MSSndCard *soundCard)
         case MS_SND_CARD_DEVICE_TYPE_HEADPHONES:
             deviceType = AudioDevice::Type::Headphones;
             break;
+        case MS_SND_CARD_DEVICE_TYPE_DEFAULT:
+            deviceType = AudioDevice::Type::Default;
+            break;
         default:
         case MS_SND_CARD_DEVICE_TYPE_UNKNOWN:
             deviceType = AudioDevice::Type::Unknown;
@@ -159,6 +162,9 @@ string AudioDevice::toString() const {
             break;
         case AudioDevice::Type::Headphones:
             ss << "Headphones";
+            break;
+        case AudioDevice::Type::Default:
+            ss << "Default";
             break;
         case AudioDevice::Type::Unknown:
         default:
