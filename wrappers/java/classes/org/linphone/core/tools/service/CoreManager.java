@@ -193,6 +193,7 @@ public class CoreManager {
                 }
             }
 
+            /* 4Com - Ringtone and audio focus are handled by phone-app and telecom
             @Override
             public void onLastCallEnded(Core core) {
                 Log.i("[Core Manager] Last call ended");
@@ -258,6 +259,7 @@ public class CoreManager {
                     mAudioHelper.requestCallAudioFocus();
                 }
             }
+            */
         };
         
         mCore.addListener(mListener);
