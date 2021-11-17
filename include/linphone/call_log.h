@@ -130,6 +130,13 @@ LINPHONE_PUBLIC const rtp_stats_t * linphone_call_log_get_remote_stats(const Lin
 LINPHONE_PUBLIC time_t linphone_call_log_get_start_date(const LinphoneCallLog *call_log);
 
 /**
+ * Get the start date of the call media.
+ * @param[in] cl #LinphoneCallLog object
+ * @return The date of the beginning of the call.
+**/
+LINPHONE_PUBLIC time_t linphone_call_log_get_connected_date(const LinphoneCallLog *cl);
+
+/**
  * Get the status of the call.
  * @param call_log #LinphoneCallLog object @notnil
  * @return The #LinphoneCallStatus of the call.
