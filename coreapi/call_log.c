@@ -242,6 +242,10 @@ time_t linphone_call_log_get_start_date(const LinphoneCallLog *cl){
 	return cl->start_date_time;
 }
 
+time_t linphone_call_log_get_connected_date(const LinphoneCallLog *cl){
+    return cl->connected_date_time;
+}
+
 LinphoneCallStatus linphone_call_log_get_status(const LinphoneCallLog *cl){
 	return cl->status;
 }
