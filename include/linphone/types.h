@@ -1276,4 +1276,15 @@ typedef int LinphoneStatus;
 **/
 typedef struct _LinphoneHeaders LinphoneHeaders;
 
+/** 
+ * 4com [HS-1929] - CTI
+ * Enum for CTI Event states
+ * @ingroup call_control
+ **/
+typedef enum _LinphoneCtiEvent {
+    CtiAnswer,
+    CtiHold,
+    CtiResume
+} LinphoneCtiEvent;
+
 #endif /* LINPHONE_TYPES_H_ */

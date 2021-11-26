@@ -591,6 +591,8 @@ void linphone_core_notify_first_call_started(LinphoneCore *lc);
 void linphone_core_notify_last_call_ended(LinphoneCore *lc);
 void linphone_core_notify_audio_device_changed(LinphoneCore *lc, LinphoneAudioDevice *audioDevice);
 void linphone_core_notify_audio_devices_list_updated(LinphoneCore *lc);
+// 4com [HS-1929] - CTI
+void linphone_core_notify_cti_event_received(LinphoneCore* lc, LinphoneCall* call, LinphoneCtiEvent event);
 /*
  * return true if at least a registered vtable has a cb for dtmf received*/
 bool_t linphone_core_dtmf_received_has_listener(const LinphoneCore* lc);

@@ -162,6 +162,9 @@ public:
 
 	LinphoneMediaEncryption getNegotiatedMediaEncryption() const;
 
+	// 4com [HS-1929] - CTI
+	bool fourcomShouldEnableVideo (const std::shared_ptr<SalMediaDescription> & md) const;
+
 private:
 	/* IceServiceListener methods:*/
 	virtual void onGatheringFinished(IceService &service) override;

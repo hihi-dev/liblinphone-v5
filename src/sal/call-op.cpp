@@ -949,6 +949,12 @@ void SalCallOp::processRequestEventCb (void *userCtx, const belle_sip_request_ev
 							lInfo() << "The caller asked to automatically answer the call (Emergency?)";
 						}
 					}
+
+					// 4Com [HS-1929] - Set call invite had empty body if CTI SIP INVITE
+					if (belle_sip_message_get_body_size(BELLE_SIP_MESSAGE(request)) == 0) {
+						op->setCallInviteHadEmptyBody(TRUE);
+					}
+
 					op->mRoot->mCallbacks.call_received(op);
 				} else {
 					sal_error_info_set(&op->mErrorInfo, reason, "SIP", 0, nullptr, nullptr);
@@ -977,6 +983,12 @@ void SalCallOp::processRequestEventCb (void *userCtx, const belle_sip_request_ev
 				op->resetDescriptions();
 				if (op->processBodyForInvite(request) == SalReasonNone)
 					op->mRoot->mCallbacks.call_updating(op, true);
+			} else if (method == "NOTIFY") {
+				// 4com [HS-1929] - CTI
+				response = op->createResponseFromRequest(request, 200);
+				belle_sip_server_transaction_send_response(serverTransaction, response);
+				op->handleCtiAnswerEvent(op, belle_sip_message_get_header(BELLE_SIP_MESSAGE(request), "Event"));
+				// 4com end
 			} else {
 				lError() << "Unexpected method [" << method << "] for dialog state BELLE_SIP_DIALOG_EARLY";
 				unsupportedMethod(serverTransaction, request);
@@ -1053,7 +1065,20 @@ void SalCallOp::processRequestEventCb (void *userCtx, const belle_sip_request_ev
 			} else if (method == "REFER") {
 				op->processRefer(event, serverTransaction);
 			} else if (method == "NOTIFY") {
-				op->processNotify(event, serverTransaction);
+				// 4com [HS-1929] - CTI
+				belle_sip_header_t* call_event=belle_sip_message_get_header(BELLE_SIP_MESSAGE(request),"Event");
+				const char* header_value=belle_sip_header_get_unparsed_value(call_event);
+
+				if (strncmp(header_value, "refer", strlen("refer")) == 0) {
+					op->processNotify(event, serverTransaction);
+				} else if(strcmp(header_value,"hold")==0) {
+					op->handleCtiNotify(op, serverTransaction, request, "hold");
+				} else if(strcmp(header_value,"talk")==0) {
+					op->handleCtiNotify(op, serverTransaction, request, "talk");
+				} else {
+					op->unsupportedMethod(serverTransaction, request);
+				}
+				// 4com end
 			} else if (method == "OPTIONS") {
 				response = op->createResponseFromRequest(request, 200);
 				belle_sip_server_transaction_send_response(serverTransaction, response);
@@ -1952,6 +1977,21 @@ void SalCallOp::handleOfferAnswerResponse (belle_sip_response_t *response) {
 			mSdpAnswer = nullptr;
 		}
 	}
+}
+
+// 4com [HS-1929] - CTI
+void SalCallOp::handleCtiNotify(SalOp *op, belle_sip_server_transaction_t *server_transaction, belle_sip_request_t *request, const char *event) {
+    belle_sip_response_t *resp;
+    this->mRoot->mCallbacks.cti_event_received(op, event);
+    resp = createResponseFromRequest(request, 200);
+    belle_sip_server_transaction_send_response(server_transaction, resp);
+}
+
+// 4com [HS-1929] - CTI
+void SalCallOp::handleCtiAnswerEvent(SalOp *op, belle_sip_header_t *call_event) {
+    if(strcmp(belle_sip_header_get_unparsed_value(call_event),"talk")==0) {
+        this->mRoot->mCallbacks.cti_event_received(op, "answer");
+    }
 }
 
 LINPHONE_END_NAMESPACE

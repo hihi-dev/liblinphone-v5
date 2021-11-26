@@ -485,6 +485,16 @@ LinphoneCoreCbsCallCreatedCb linphone_core_cbs_get_call_created(LinphoneCoreCbs 
 	return cbs->vtable->call_created;
 }
 
+// 4com [HS-1929] - CTI
+void linphone_core_cbs_set_cti_event_received(LinphoneCoreCbs *cbs, LinphoneCoreCbsCtiEventReceivedCb cb) {
+	cbs->vtable->cti_event_received = cb;
+}
+
+// 4com [HS-1929] - CTI
+LinphoneCoreCbsCtiEventReceivedCb linphone_core_cbs_get_cti_event_received(LinphoneCoreCbs *cbs) {
+    return cbs->vtable->cti_event_received;
+}
+
 void linphone_core_cbs_set_call_created(LinphoneCoreCbs *cbs, LinphoneCoreCbsCallCreatedCb cb) {
 	cbs->vtable->call_created = cb;
 }
