@@ -1008,6 +1008,14 @@ int Call::getDuration () const {
 	return getActiveSession()->getDuration();
 }
 
+/**
+ * 4com [HS-1929] - CTI
+ * @return TRUE if the SIP INVITE that initiated the call had an empty body.
+*/
+bool Call::callInviteHadEmptyBody() const {
+    return getActiveSession()->getPrivate()->getOp()->getCallInviteHadEmptyBody();
+}
+
 const LinphoneErrorInfo *Call::getErrorInfo () const {
 	return getActiveSession()->getErrorInfo();
 }

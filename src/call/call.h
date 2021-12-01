@@ -283,6 +283,9 @@ public:
 	bool canSoundResourcesBeFreed () const;
 	const std::list<LinphoneMediaEncryption> getSupportedEncryptions() const;
 
+	// 4com [HS-1929] - CTI
+	bool callInviteHadEmptyBody () const;
+
 private:
 	std::shared_ptr<Participant> mParticipant;
 	mutable LinphonePlayer *mPlayer = nullptr;

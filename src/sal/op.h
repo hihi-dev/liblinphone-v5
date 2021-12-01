@@ -142,6 +142,9 @@ public:
 
 	belle_sip_source_t *mSessionTimersTimer = nullptr;
 
+	// 4com [HS-1929] - CTI
+	bool getCallInviteHadEmptyBody() { return mCallInviteHadEmptyBody; }
+
 protected:
 	enum class State {
 		Early = 0,
@@ -226,6 +229,9 @@ protected:
 	static void assignAddress (SalAddress **address, const std::string &value);
 	static void addInitialRouteSet (belle_sip_request_t *request, const std::list<SalAddress *> &routeAddresses);
 
+	// 4com [HS-1929] - CTI
+	void setCallInviteHadEmptyBody(const bool callInviteHadEmptyBody) { mCallInviteHadEmptyBody = callInviteHadEmptyBody; }
+
 	// SalOpBase
 	Sal *mRoot = nullptr;
 	std::string mRoute; // Or request-uri for REGISTER
@@ -281,6 +287,7 @@ protected:
 	bool mHasAuthPending = false;
 	bool mSupportsSessionTimers = false;
 	bool mOpReleased = false;
+	bool mCallInviteHadEmptyBody = false; // 4Com [HS-1929] - CTI
 
 	friend class Sal;
 	friend class Call;

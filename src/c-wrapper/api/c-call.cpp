@@ -516,6 +516,11 @@ bool_t linphone_call_media_in_progress (const LinphoneCall *call) {
 	return Call::toCpp(call)->mediaInProgress();
 }
 
+// 4com [HS-1929] - CTI
+bool_t linphone_call_invite_had_empty_body(const LinphoneCall *call) {
+    return Call::toCpp(call)->callInviteHadEmptyBody();
+}
+
 void linphone_call_ogl_render (const LinphoneCall *call) {
 	Call::toCpp(call)->oglRender();
 }

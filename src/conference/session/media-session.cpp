@@ -922,11 +922,25 @@ void MediaSessionPrivate::fixCallParams (std::shared_ptr<SalMediaDescription> & 
 void MediaSessionPrivate::initializeParamsAccordingToIncomingCallParams () {
 	CallSessionPrivate::initializeParamsAccordingToIncomingCallParams();
 	std::shared_ptr<SalMediaDescription> md = op->getRemoteMediaDescription();
+
+	// 4com [HS-1929] - Enable video if CTI call
+	getParams()->enableVideo(fourcomShouldEnableVideo(md));
+
 	if (md) {
 		assignStreamsIndexesIncoming(md);
 		/* It is licit to receive an INVITE without SDP, in this case WE choose the media parameters according to policy */
 		setCompatibleIncomingCallParams(md);
 	}
+}
+
+/** 4com [HS-1929] - CTI
+ * @param SalMediaDescription 
+ * @return TRUE if the call was initiated by 4sight CTI.
+ */
+bool MediaSessionPrivate::fourcomShouldEnableVideo(const std::shared_ptr<SalMediaDescription> & md) const {
+	L_Q();
+	LinphoneCore* lc = q->getCore()->getCCore();
+	return linphone_core_video_enabled(lc) && lc->video_policy.automatically_accept && md;
 }
 
 bool MediaSessionPrivate::hasAvpf(const std::shared_ptr<SalMediaDescription> & md)const{

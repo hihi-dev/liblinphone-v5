@@ -40,6 +40,15 @@
 **/
 
 /**
+ * 4com [HS-1929] - CTI
+ * Callback for being notified of received CtiEvent.
+ * @param lc #LinphoneCore. @notnil
+ * @param call #LinphoneCall object. @notnil
+ * @param event The event. @notnil
+ */
+typedef void (*LinphoneCoreCbsCtiEventReceivedCb)(LinphoneCore *lc, LinphoneCall *call, LinphoneCtiEvent event);
+
+/**
  * Callback notifying that a new #LinphoneCall (either incoming or outgoing) has been created.
  * @param core #LinphoneCore object that has created the call @notnil
  * @param call The newly created #LinphoneCall object @notnil

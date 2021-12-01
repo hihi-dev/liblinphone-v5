@@ -238,6 +238,8 @@ typedef struct _LinphoneCoreVTable{
 	LinphoneCoreFriendListCreatedCb friend_list_created;
 	LinphoneCoreFriendListRemovedCb friend_list_removed;
 	LinphoneCoreCbsCallCreatedCb call_created;
+	// 4com [HS-1929] - CTI
+	LinphoneCoreCbsCtiEventReceivedCb cti_event_received;
 	LinphoneCoreCbsVersionUpdateCheckResultReceivedCb version_update_check_result_received;
 	LinphoneCoreCbsConferenceStateChangedCb conference_state_changed;
 	LinphoneCoreCbsChatRoomStateChangedCb chat_room_state_changed;
@@ -775,6 +777,22 @@ LINPHONE_PUBLIC LinphoneCoreCbsFriendListRemovedCb linphone_core_cbs_get_friend_
  * @param cb The call created callback to be used.
  */
 LINPHONE_PUBLIC void linphone_core_cbs_set_call_created(LinphoneCoreCbs *cbs, LinphoneCoreCbsCallCreatedCb cb);
+
+/**
+ * 4com [HS-1929] - CTI
+ * Get the #LinphoneCoreCbsCtiEventReceivedCb callback.
+ * @param cbs A #LinphoneCoreCbs. @notnil
+ * @return The callback.
+ */
+LINPHONE_PUBLIC LinphoneCoreCbsCtiEventReceivedCb linphone_core_cbs_get_cti_event_received(LinphoneCoreCbs *cbs);
+
+/**
+ * 4com [HS-1929] - CTI
+ * Set the call created callback.
+ * @param cbs #LinphoneCallCbs object. @notnil
+ * @param cb The call created callback to be used. @notnil
+ */
+LINPHONE_PUBLIC void linphone_core_cbs_set_cti_event_received(LinphoneCoreCbs *cbs, LinphoneCoreCbsCtiEventReceivedCb cb);
 
 /**
  * Get the call created callback.

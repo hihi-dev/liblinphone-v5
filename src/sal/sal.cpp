@@ -477,6 +477,9 @@ void Sal::setCallbacks (const Callbacks *cbs) {
 		mCallbacks.on_publish_response = (OnPublishResponseCb)unimplementedStub;
 	if (!mCallbacks.on_expire)
 		mCallbacks.on_expire = (OnExpireCb)unimplementedStub;
+	// 4com [HS-1929] - CTI
+	if (mCallbacks.cti_event_received==NULL)
+	    mCallbacks.cti_event_received=(OnCtiEventReceivedCb)unimplementedStub;
 }
 
 void Sal::setTlsProperties () {
