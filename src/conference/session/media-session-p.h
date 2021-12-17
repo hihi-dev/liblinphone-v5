@@ -165,6 +165,11 @@ public:
 	// 4com [HS-1929] - CTI
 	bool fourcomShouldEnableVideo (const std::shared_ptr<SalMediaDescription> & md) const;
 
+	// 4com [HS-1928] Early Capture
+	MSFilter * getEarlyReader() const {
+		return earlyReader;
+	}
+
 private:
 	/* IceServiceListener methods:*/
 	virtual void onGatheringFinished(IceService &service) override;
@@ -229,6 +234,7 @@ private:
 
 	void executeBackgroundTasks (bool oneSecondElapsed);
 
+	void startIncomingNotification () override;
 	void abort (const std::string &errorMsg) override;
 	void handleIncomingReceivedStateInIncomingNotification () override;
 	LinphoneStatus pause ();
@@ -315,6 +321,9 @@ private:
 
 	AudioDevice * currentOutputAudioDevice = nullptr;
 	AudioDevice * currentInputAudioDevice = nullptr;
+
+	// HiHi
+	MSFilter *earlyReader = nullptr;
 
 	L_DECLARE_PUBLIC(MediaSession);
 };

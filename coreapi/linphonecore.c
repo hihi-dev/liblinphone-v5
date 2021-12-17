@@ -1462,7 +1462,7 @@ static void sound_config_read(LinphoneCore *lc) {
 	linphone_core_set_disable_record_on_mute(lc, linphone_config_get_bool(lc->config,"sound","disable_record_on_mute", FALSE));
 	linphone_core_set_remote_ringback_tone (lc,linphone_config_get_string(lc->config,"sound","ringback_tone",NULL));
 
-    /** HiHi Test tones **/
+	/** HiHi Test tones **/
    	linphone_core_enable_test_tone(lc, !!linphone_config_get_int(lc->config,"sound","test_tone",0));
 	/*just parse requested stream feature once at start to print out eventual errors*/
 	linphone_core_get_audio_features(lc);

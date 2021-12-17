@@ -731,7 +731,13 @@ LinphoneCallStats * MediaSessionPrivate::getStats(LinphoneStreamType type) const
 
 
 void MediaSessionPrivate::stopStreams () {
-	if (getStreamsGroup().isStarted()) getStreamsGroup().stop();
+	if (getStreamsGroup().isStarted()) {
+		getStreamsGroup().stop();
+	} else if (earlyReader != nullptr) {
+		ms_filter_postprocess(earlyReader);
+		ms_filter_destroy(earlyReader);
+	}
+	earlyReader = nullptr;
 }
 
 // -----------------------------------------------------------------------------
@@ -2055,6 +2061,19 @@ void MediaSessionPrivate::lossOfMediaDetected() {
 }
 
 // -----------------------------------------------------------------------------
+
+// HiHi
+void MediaSessionPrivate::startIncomingNotification () {
+	L_Q();
+	CallSessionPrivate::startIncomingNotification();
+
+	bool earlyCapture = linphone_config_get_bool(linphone_core_get_config(q->getCore()->getCCore()), "sound", "early_capture", false);
+	if (earlyCapture && earlyReader == nullptr) {
+		MSSndCard *captcard = q->getCore()->getCCore()->sound_conf.capt_sndcard;
+		earlyReader = ms_snd_card_create_reader(captcard);
+		ms_filter_preprocess(earlyReader, NULL);
+	}
+}
 
 void MediaSessionPrivate::abort (const string &errorMsg) {
 	L_Q();

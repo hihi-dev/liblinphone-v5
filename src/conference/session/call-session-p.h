@@ -40,7 +40,7 @@ public:
 	virtual void setState (CallSession::State newState, const std::string &message);
 	void restorePreviousState();
 	void setTransferState (CallSession::State newState);
-	void startIncomingNotification ();
+	virtual void startIncomingNotification ();
 	bool startPing ();
 	void setPingTime (int value) { pingTime = value; }
 
