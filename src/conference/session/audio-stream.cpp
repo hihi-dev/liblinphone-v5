@@ -403,8 +403,10 @@ void MS2AudioStream::render(const OfferAnswerContext &params, CallSession::State
 		if (mCurrentCaptureCard) mCurrentCaptureCard = ms_snd_card_ref(mCurrentCaptureCard);
 		if (mCurrentPlaybackCard) mCurrentPlaybackCard = ms_snd_card_ref(mCurrentPlaybackCard);
 
+		// 4Com [HS-1928] Early Capture
+		MSFilter *earlyReader = getMediaSessionPrivate().getEarlyReader();
 		int err = audio_stream_start_from_io(mStream, audioProfile, dest.rtpAddr.c_str(), dest.rtpPort,
-			dest.rtcpAddr.c_str(), dest.rtcpPort, usedPt, &io);
+			dest.rtcpAddr.c_str(), dest.rtcpPort, usedPt, &io, earlyReader);
 		VideoStream *vs = getPeerVideoStream();
 		if (vs) audio_stream_link_video(mStream, vs);
 		if (err == 0)
