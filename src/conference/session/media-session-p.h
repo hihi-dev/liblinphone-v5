@@ -169,6 +169,7 @@ public:
 	MSFilter * getEarlyReader() const {
 		return earlyReader;
 	}
+	void resetEarlyReader();
 
 private:
 	/* IceServiceListener methods:*/
