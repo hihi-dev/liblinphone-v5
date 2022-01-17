@@ -734,9 +734,14 @@ void MediaSessionPrivate::stopStreams () {
 	if (getStreamsGroup().isStarted()) {
 		getStreamsGroup().stop();
 	} else if (earlyReader != nullptr) {
+		// Early reader was not added to the audio stream so we must destroy it
 		ms_filter_postprocess(earlyReader);
 		ms_filter_destroy(earlyReader);
 	}
+	earlyReader = nullptr;
+}
+
+void MediaSessionPrivate::resetEarlyReader() {
 	earlyReader = nullptr;
 }
 
