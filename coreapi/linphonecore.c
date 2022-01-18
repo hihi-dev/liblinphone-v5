@@ -222,8 +222,17 @@ void linphone_core_cbs_unref(LinphoneCoreCbs *cbs) {
 }
 
 // 4com [HS-1934] Call hold and waiting tones
-void linphone_core_enable_call_waiting_tones(LinphoneCore *lc, bool_t enable){
+void linphone_core_enable_call_waiting_tones(LinphoneCore *lc, bool_t enable) {
 	lc->call_waiting_tones_enabled = enable;
+	for (const auto &call : L_GET_CPP_PTR_FROM_C_OBJECT(lc)->getCalls()) {
+		if (call->getState() == CallSession::State::IncomingReceived) {
+			if (enable) {
+				L_GET_PRIVATE_FROM_C_OBJECT(lc)->getToneManager()->startNamedTone(call->getActiveSession(), LinphoneToneCallWaiting);
+			} else {
+				linphone_core_stop_dtmf_stream(lc);
+			}
+		}
+	}
 }
 
 // 4com [HS-1934] Call hold and waiting tones
