@@ -221,6 +221,26 @@ void linphone_core_cbs_unref(LinphoneCoreCbs *cbs) {
 	belle_sip_object_unref(cbs);
 }
 
+// 4com [HS-1934] Call hold and waiting tones
+void linphone_core_enable_call_waiting_tones(LinphoneCore *lc, bool_t enable){
+	lc->call_waiting_tones_enabled = enable;
+}
+
+// 4com [HS-1934] Call hold and waiting tones
+bool_t linphone_core_is_call_waiting_tones_enabled(const LinphoneCore *core) {
+	return core->call_waiting_tones_enabled;
+}
+
+// 4com [HS-1934] Call hold and waiting tones
+void linphone_core_enable_call_hold_tones(LinphoneCore *lc, bool_t enable){
+	lc->call_hold_tones_enabled = enable;
+}
+
+// 4com [HS-1934] Call hold and waiting tones
+bool_t linphone_core_is_call_hold_tones_enabled(const LinphoneCore *core) {
+	return core->call_hold_tones_enabled;
+}
+
 void linphone_core_cbs_set_user_data(LinphoneCoreCbs *cbs, void *user_data) {
 	cbs->vtable->user_data = user_data;
 }

@@ -803,7 +803,9 @@ namespace LinphonePrivate {
 	bool_t has_already_started_once; \
 	bool_t send_imdn_if_unregistered; \
 	LinphonePushNotificationConfig *push_config;\
-	unsigned long iterate_thread_id;
+	unsigned long iterate_thread_id; \
+	bool_t call_waiting_tones_enabled; \
+	bool_t call_hold_tones_enabled;
 
 #define LINPHONE_CORE_STRUCT_FIELDS \
 	LINPHONE_CORE_STRUCT_BASE_FIELDS \
