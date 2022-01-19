@@ -98,6 +98,7 @@ class ToneManager : public CoreAccessor {
         bool isAnotherSessionInState(const std::shared_ptr<CallSession> &me, ToneManager::State state);
         bool getSessionInState(ToneManager::State state, std::shared_ptr<CallSession> &session);
         bool isThereACall();
+        bool shouldPlayTone(LinphoneToneID toneId);
 
         // start
         void doStartRingbackTone(const std::shared_ptr<CallSession> &session);

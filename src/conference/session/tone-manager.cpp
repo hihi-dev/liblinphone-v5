@@ -459,12 +459,24 @@ void ToneManager::doStartErrorTone(const std::shared_ptr<CallSession> &session, 
 void ToneManager::doStartNamedTone(const std::shared_ptr<CallSession> &session, LinphoneToneID toneId) {
 	lInfo() << "[ToneManager] " << __func__ << " [" << Utils::toString(toneId) << "]";
 	LinphoneToneDescription *tone = getToneFromId(toneId);
-	
+
 	if (tone && tone->audiofile) {
 		playFile(tone->audiofile);
-	} else {
+	} else if (shouldPlayTone(toneId)) {
 		MSDtmfGenCustomTone dtmfTone = generateToneFromId(toneId);
 		playTone(session, dtmfTone);
+	}
+}
+
+// 4com [HS-1934] Call hold and waiting tones
+bool ToneManager::shouldPlayTone(LinphoneToneID toneId) {
+	LinphoneCore *lc = getCore()->getCCore();
+	if (toneId == LinphoneToneCallOnHold) {
+		return linphone_core_is_call_hold_tones_enabled(lc);
+	} else if (toneId == LinphoneToneCallWaiting) {
+		return linphone_core_is_call_waiting_tones_enabled(lc);
+	} else {
+		return TRUE;
 	}
 }
 
@@ -627,7 +639,7 @@ MSDtmfGenCustomTone ToneManager::generateToneFromId(LinphoneToneID toneId) {
 	/*these are french tones, excepted the failed one, which comes USA congestion on mono-frequency*/
 	switch(toneId) {
 		case LinphoneToneCallOnHold:
-			def.repeat_count=3;
+			def.repeat_count=2;
 			def.duration=300;
 			def.frequencies[0]=440;
 			def.interval=2000;

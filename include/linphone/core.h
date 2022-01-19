@@ -284,6 +284,34 @@ LINPHONE_PUBLIC void linphone_core_v_table_set_user_data(LinphoneCoreVTable *tab
  */
 LINPHONE_PUBLIC void* linphone_core_v_table_get_user_data(const LinphoneCoreVTable *table);
 
+/** 
+ * 4com [HS-1934] Call hold and waiting tones
+ * @param[in] lc LinphoneCore object
+ * @param[in] enable or disable call waiting tones
+**/
+LINPHONE_PUBLIC void linphone_core_enable_call_waiting_tones(LinphoneCore *lc, bool_t enable);
+
+/** 
+ * 4com [HS-1934] Call hold and waiting tones
+ * @param[in] lc LinphoneCore object
+ * @return call waiting tones enabled
+**/
+LINPHONE_PUBLIC bool_t linphone_core_is_call_waiting_tones_enabled(const LinphoneCore *core);
+
+/**
+ * 4com [HS-1934] Call hold and waiting tones
+ * @param[in] lc LinphoneCore object
+ * @param[in] enable or disable call hold tones
+**/
+LINPHONE_PUBLIC void linphone_core_enable_call_hold_tones(LinphoneCore *lc, bool_t enable);
+
+/** 
+ * 4com [HS-1934] Call hold and waiting tones
+ * @param[in] lc LinphoneCore object
+ * @return call hold tones enabled
+**/
+LINPHONE_PUBLIC bool_t linphone_core_is_call_hold_tones_enabled(const LinphoneCore *core);
+
 /**
  * Gets the current VTable.
  * This is meant only to be called from a callback to be able to get the user_data associated with the vtable that called the callback.

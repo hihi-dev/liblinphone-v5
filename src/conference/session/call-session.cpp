@@ -355,7 +355,8 @@ bool CallSessionPrivate::failure () {
 		// Notify referer of the failure
 		notifyReferState();
 	}
-	return false;
+	// 4com [HS-1934] Call hold and waiting tones - Return true so busy beeps are heard
+	return true;
 }
 
 void CallSessionPrivate::infoReceived (SalBodyHandler *bodyHandler) {
