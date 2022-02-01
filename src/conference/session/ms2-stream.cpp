@@ -548,6 +548,16 @@ bool MS2Stream::handleBasicChanges(const OfferAnswerContext &params, CallSession
 			updateCryptoParameters(params);
 			changesToHandle &= ~SAL_MEDIA_DESCRIPTION_CRYPTO_KEYS_CHANGED;
 		}
+		// 4Com HS-2163 ignore ptime change if it's the same as the current ptime encoding
+		if (params.resultStreamDescriptionChanges & SAL_MEDIA_DESCRIPTION_PTIME_CHANGED && canIgnorePtimeChange(params)){
+			lInfo() << "Ignoring ptime change - does not effect current stream";
+			changesToHandle &= ~SAL_MEDIA_DESCRIPTION_PTIME_CHANGED;
+		}
+		// 4Com HS-2163 ignore bandwidth change if it's changed to unset
+		if (params.resultStreamDescriptionChanges & SAL_MEDIA_DESCRIPTION_BANDWIDTH_CHANGED && stream.bandwidth == 0){
+			lInfo() << "Ignoring bandwidth change - does not effect current stream";
+			changesToHandle &= ~SAL_MEDIA_DESCRIPTION_BANDWIDTH_CHANGED;
+		}
 		// SAL_MEDIA_DESCRIPTION_STREAMS_CHANGED monitors the number of streams, it is ignored here.
 		changesToHandle &= ~SAL_MEDIA_DESCRIPTION_STREAMS_CHANGED;
 		
@@ -865,6 +875,20 @@ void MS2Stream::updateDestinations(const OfferAnswerContext &params) {
 	std::string rtcpAddr = (resultStreamDesc.rtcp_addr.empty() == false) ? resultStreamDesc.rtcp_addr : params.resultMediaDescription->addr;
 	lInfo() << "Change audio stream destination: RTP=" << rtpAddr << ":" << resultStreamDesc.rtp_port << " RTCP=" << rtcpAddr << ":" << resultStreamDesc.rtcp_port;
 	rtp_session_set_remote_addr_full(mSessions.rtp_session, rtpAddr.c_str(), resultStreamDesc.rtp_port, rtcpAddr.c_str(), resultStreamDesc.rtcp_port);
+}
+
+// 4Com HS-2163
+bool MS2Stream::canIgnorePtimeChange(const OfferAnswerContext &params) {
+	const auto & resultStreamDesc = params.getResultStreamDescription();
+	const PayloadType *pt = getMediaSessionPrivate().getCurrentParams()->getUsedAudioCodec();
+	if (pt != nullptr && pt->send_fmtp != NULL) {
+		char tmp[30];
+		if (fmtp_get_value(pt->send_fmtp,"ptime",tmp,sizeof(tmp))) {
+			lInfo() << "HJP Current encoder ptime is " << tmp;
+			return resultStreamDesc.getChosenConfiguration().ptime == atoi(tmp);
+		}
+	}
+	return false;
 }
 
 void MS2Stream::startEventHandling(){
