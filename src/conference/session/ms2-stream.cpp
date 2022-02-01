@@ -884,7 +884,6 @@ bool MS2Stream::canIgnorePtimeChange(const OfferAnswerContext &params) {
 	if (pt != nullptr && pt->send_fmtp != NULL) {
 		char tmp[30];
 		if (fmtp_get_value(pt->send_fmtp,"ptime",tmp,sizeof(tmp))) {
-			lInfo() << "HJP Current encoder ptime is " << tmp;
 			return resultStreamDesc.getChosenConfiguration().ptime == atoi(tmp);
 		}
 	}
